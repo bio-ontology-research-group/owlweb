@@ -3,13 +3,14 @@ from __future__ import unicode_literals
 
 from django.db import models
 from django.contrib.auth.models import User
-from django.contrib.postgres.fields import ArrayField, JSONField
+from django.contrib.postgres.fields import ArrayField
 from django.utils import timezone
 from django.conf import settings
 import os
 
 ABEROWL_API_URL = getattr(
     settings, 'ABEROWL_API_URL', 'http://localhost:8080/api/')
+
 
 class Ontology(models.Model):
     CLASSIFIED = 'Classified'
@@ -25,7 +26,7 @@ class Ontology(models.Model):
     BIOPORTAL = 'bioportal'
     OBOFOUNDRY = 'obofoundry'
     MANUAL = 'manual'
-    
+
     acronym = models.CharField(max_length=63, unique=True)
     name = models.CharField(max_length=255)
     created_by = models.ForeignKey(
@@ -37,7 +38,7 @@ class Ontology(models.Model):
         User, on_delete=models.SET_NULL, blank=True, null=True,
         related_name='modified_ontologies')
     date_modified = models.DateTimeField(blank=True, null=True)
-    
+
     date_updated = models.DateTimeField(blank=True, null=True)
     status = models.CharField(
         max_length=31, choices=STATUS_CHOICES, default=UNKNOWN)
@@ -46,7 +47,7 @@ class Ontology(models.Model):
     species = ArrayField(
         models.CharField(max_length=127), blank=True, null=True)
     nb_servers = models.PositiveIntegerField(default=0)
-    
+
     is_obsolete = models.BooleanField(default=False)
 
     class Meta:
@@ -62,7 +63,7 @@ class Ontology(models.Model):
     def get_api_url(self):
         return ABEROWL_API_URL
 
-    
+
 class Submission(models.Model):
     LANGUAGE_CHOICES = (
         ('OWL', 'OWL'),
@@ -77,9 +78,9 @@ class Submission(models.Model):
     description = models.TextField(blank=True, null=True)
     documentation = models.CharField(max_length=255, blank=True, null=True)
     publication = models.CharField(max_length=255, blank=True, null=True)
-    publications = JSONField(blank=True, null=True)
-    products = JSONField(blank=True, null=True)
-    taxon = JSONField(blank=True, null=True)
+    publications = models.JSONField(blank=True, null=True)
+    products = models.JSONField(blank=True, null=True)
+    taxon = models.JSONField(blank=True, null=True)
     date_released = models.DateTimeField()
     date_created = models.DateTimeField()
     home_page = models.CharField(max_length=255, blank=True, null=True)
@@ -113,11 +114,10 @@ class Submission(models.Model):
     def get_filepath(self, folder=None):
         if folder is None:
             folder = str(self.submission_id)
-        filename = (self.ontology.acronym  + '.'
+        filename = (self.ontology.acronym + '.'
                     + self.has_ontology_language).lower()
         filedir = (settings.MEDIA_ROOT + 'ontologies/' + self.ontology.acronym
-                + '/' + folder + '/')
+                   + '/' + folder + '/')
         if not os.path.exists(filedir):
             os.makedirs(filedir)
         return filedir + filename
-

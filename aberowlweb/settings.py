@@ -21,6 +21,7 @@ import os, shutil, configparser
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+
 def rel(*x):
     return os.path.join(os.path.abspath(os.path.dirname(__file__)), *x)
 
@@ -37,6 +38,7 @@ if not os.path.isfile(configFile):
 
 config = configparser.RawConfigParser()
 config.read(configFile)
+
 
 class BaseConfiguration(Configuration):
     # Quick-start development settings - unsuitable for production
@@ -66,6 +68,9 @@ class BaseConfiguration(Configuration):
         'django.contrib.messages',
         'django.contrib.staticfiles',
         'django.contrib.sites',
+        'django.forms',
+        "crispy_forms",
+        "crispy_bootstrap5",
         'accounts',
         'allauth',
         'allauth.account',
@@ -74,7 +79,6 @@ class BaseConfiguration(Configuration):
         'rest_framework_swagger',
         'widget_tweaks',
         'aberowl',
-        'snowpenguin.django.recaptcha2',
     ]
 
     REST_FRAMEWORK = {
@@ -82,7 +86,7 @@ class BaseConfiguration(Configuration):
             'rest_framework.renderers.JSONRenderer',
             'rest_framework.renderers.BrowsableAPIRenderer',
         ],
-        'URL_FORMAT_OVERRIDE':'drf_fromat'
+        'URL_FORMAT_OVERRIDE': 'drf_fromat'
     }
 
     MIDDLEWARE = [
@@ -102,15 +106,19 @@ class BaseConfiguration(Configuration):
     TEMPLATES = [
         {
             'BACKEND': 'django.template.backends.django.DjangoTemplates',
-            'DIRS': [rel('templates'),],
+            'DIRS': [rel('templates'), ],
             'APP_DIRS': True,
             'OPTIONS': {
                 'context_processors': [
-                    'django.template.context_processors.debug',
-                    'django.template.context_processors.request',
-                    'django.contrib.auth.context_processors.auth',
-                    'django.contrib.messages.context_processors.messages',
-                ],
+                    "django.template.context_processors.debug",
+                    "django.template.context_processors.request",
+                    "django.contrib.auth.context_processors.auth",
+                    "django.template.context_processors.i18n",
+                    "django.template.context_processors.media",
+                    "django.template.context_processors.static",
+                    "django.template.context_processors.tz",
+                    "django.contrib.messages.context_processors.messages",
+                ]
             },
         },
     ]
@@ -124,7 +132,6 @@ class BaseConfiguration(Configuration):
 
     WSGI_APPLICATION = 'aberowlweb.wsgi.application'
 
-
     # Database
     # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 
@@ -137,19 +144,22 @@ class BaseConfiguration(Configuration):
             'PASSWORD': config['database']['DATABASE_PASSWORD'],
         }
     }
-
+    DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
     # Memcached
     CACHES = {
         'default': {
-            'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
-            'LOCATION': '127.0.0.1:11211',
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': 'redis://127.0.0.1:6379/1',  # Adjust the Redis server location as needed
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            }
         }
     }
 
     SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 
-    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.CachedStaticFilesStorage'
-    
+    # STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.CachedStaticFilesStorage'
+
     # Password validation
     # https://docs.djangoproject.com/en/1.11/ref/settings/#auth-password-validators
 
@@ -192,11 +202,11 @@ class BaseConfiguration(Configuration):
             }
         },
         'loggers': {
-             'django': {
-                 'handlers': ['file'],
-                 'level': 'DEBUG',
-                 'propagate': True,
-             },
+            'django': {
+                'handlers': ['file'],
+                'level': 'DEBUG',
+                'propagate': True,
+            },
             'aberowlweb': {
                 'handlers': ['file', 'console'],
                 'level': 'DEBUG',
@@ -215,7 +225,6 @@ class BaseConfiguration(Configuration):
         },
     }
 
-
     # Internationalization
     # https://docs.djangoproject.com/en/1.11/topics/i18n/
 
@@ -228,7 +237,6 @@ class BaseConfiguration(Configuration):
     USE_L10N = True
 
     USE_TZ = True
-
 
     # Static files (CSS, JavaScript, Images)
     # https://docs.djangoproject.com/en/1.11/howto/static-files/
@@ -244,6 +252,12 @@ class BaseConfiguration(Configuration):
     ACCOUNT_AUTHENTICATION_METHOD = "username_email"
     ACCOUNT_EMAIL_VERIFICATION = "none"
     ACCOUNT_PRESERVE_USERNAME_CASING = "False"
+    # https://docs.djangoproject.com/en/dev/ref/settings/#form-renderer
+    FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
+
+    # http://django-crispy-forms.readthedocs.io/en/latest/install.html#template-packs
+    CRISPY_TEMPLATE_PACK = "bootstrap5"
+    CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 
     STATICFILES_DIRS = (
         rel('static'),)
@@ -251,7 +265,7 @@ class BaseConfiguration(Configuration):
     SITE_ID = 1
     SITE_DOMAIN = 'localhost:8000'
     SERVER_EMAIL = 'info@aber-owl.net'
-    
+
     # Celery configuration
     RABBIT_HOST = 'localhost'
     RABBIT_PORT = 5672
@@ -289,10 +303,10 @@ class BaseConfiguration(Configuration):
     # AberOWL setttings
     ABEROWL_API_URL = 'http://localhost:8080/api/'
     ABEROWL_SERVER_URL = 'http://localhost:8000/'
-    
+
     ABEROWL_API_WORKERS = [
         'http://localhost:8080/api/']
-    
+
     FILE_UPLOAD_HANDLERS = [
         # 'django.core.files.uploadhandler.MemoryFileUploadHandler',
         'django.core.files.uploadhandler.TemporaryFileUploadHandler',
@@ -301,9 +315,9 @@ class BaseConfiguration(Configuration):
     RECAPTCHA_PRIVATE_KEY = '6LefajoUAAAAAEiswDUvk1quNKpTJCg49gwrLXpb'
     RECAPTCHA_PUBLIC_KEY = '6LefajoUAAAAAOAWkZnaz-M2lgJOIR9OF5sylXmm'
     # ACCOUNT_SIGNUP_FORM_CLASS = 'accounts.forms.SignupForm'
-    ACCOUNT_FORMS = {
-        'login': 'accounts.forms.CaptchaLoginForm',
-        'signup': 'accounts.forms.CaptchaSignupForm'}
+    # ACCOUNT_FORMS = {
+    #     'login': 'accounts.forms.CaptchaLoginForm',
+    #     'signup': 'accounts.forms.CaptchaSignupForm'}
 
     MESSAGE_TAGS = {
         messages.INFO: 'list-group-item-info',
@@ -313,35 +327,34 @@ class BaseConfiguration(Configuration):
         messages.ERROR: 'list-group-item-danger',
     }
 
-    ELASTIC_SEARCH_URL=config['elasticsearch']['ELASTIC_SEARCH_URL']
-    ELASTIC_SEARCH_USERNAME=config['elasticsearch']['ELASTIC_SEARCH_USERNAME']
-    ELASTIC_SEARCH_PASSWORD=config['elasticsearch']['ELASTIC_SEARCH_PASSWORD']
+    ELASTIC_SEARCH_URL = config['elasticsearch']['ELASTIC_SEARCH_URL']
+    ELASTIC_SEARCH_USERNAME = config['elasticsearch']['ELASTIC_SEARCH_USERNAME']
+    ELASTIC_SEARCH_PASSWORD = config['elasticsearch']['ELASTIC_SEARCH_PASSWORD']
     ELASTIC_ONTOLOGY_INDEX_NAME = config['elasticsearch']['ELASTIC_ONTOLOGY_INDEX_NAME']
     ELASTIC_CLASS_INDEX_NAME = config['elasticsearch']['ELASTIC_CLASS_INDEX_NAME']
-    
-    DLQUERY_LOGS_FOLDER='dl'
+
+    DLQUERY_LOGS_FOLDER = 'dl'
+
 
 class Development(BaseConfiguration):
     pass
 
 
 class Production(BaseConfiguration):
-
     DEBUG = False
     SITE_DOMAIN = 'aber-owl.net'
-    ABEROWL_API_URL = 'http://10.254.146.227:8080/api/' # TODO: update to LB ip
+    ABEROWL_API_URL = 'http://10.254.146.227:8080/api/'  # TODO: update to LB ip
     ABEROWL_API_WORKERS = [
         'http://10.254.146.227:8080/api/',
         'http://10.254.146.61:8080/api/']
     ABEROWL_SERVER_URL = 'http://10.254.147.137/'
-    DLQUERY_LOGS_FOLDER='dl'
+    DLQUERY_LOGS_FOLDER = 'dl'
     # SESSION_COOKIE_SECURE=True
     # SESSION_COOKIE_HTTPONLY=True
     # SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTOCOL', 'https')
 
 
 class ProductionCelery(BaseConfiguration):
-
     DEBUG = False
     SITE_DOMAIN = 'aber-owl.net'
     ABEROWL_API_URL = 'http://10.254.145.41/api/'
@@ -352,7 +365,6 @@ class ProductionCelery(BaseConfiguration):
 
 
 class TestConfiguration(BaseConfiguration):
-
     DATABASES = {
         'default': {
             'ENGINE': config['database']['DATABASE_ENGINE'],
@@ -361,5 +373,3 @@ class TestConfiguration(BaseConfiguration):
             'PASSWORD': config['database']['DATABASE_PASSWORD'],
         }
     }
-
-    

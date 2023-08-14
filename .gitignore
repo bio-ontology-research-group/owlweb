@@ -9,3 +9,6 @@ public/
 *.log
 htmlcov/
 .vscode
+.venv/
+.idea/
+dl/

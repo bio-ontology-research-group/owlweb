@@ -13,19 +13,18 @@ Including another URLconf
     1. Import the include() function: from django.conf.urls import url, include
     2. Add a URL to urlpatterns:  url(r'^blog/', include('blog.urls'))
 """
-from django.conf.urls import url, include
+from django.urls import path, include
 from django.contrib import admin
 from django.conf.urls.static import static
-from aberowlweb.views import HomePageView, AboutPageView
+from aberowlweb.views import AboutPageView
 from django.conf import settings
 from django.views.generic import TemplateView
 
 urlpatterns = [
-    # url(r'^$', HomePageView.as_view(), name='home'),
-    url(r'^', include('aberowl.urls')),
-    url(r'^admin/', admin.site.urls),
-    url(r'^accounts/', include('accounts.urls')),
-    url(r'^about/$', AboutPageView.as_view(), name='about'),
-    url(r'^healthcheck', TemplateView.as_view(template_name='health.html')),
-    url(r'docs/', TemplateView.as_view(template_name="index.html"), name='api_docs'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL)
+                  path('', include('aberowl.urls')),
+                  path('admin/', admin.site.urls),
+                  path('accounts/', include('accounts.urls')),
+                  path('about/', AboutPageView.as_view(), name='about'),
+                  path('healthcheck', TemplateView.as_view(template_name='health.html')),
+                  path('docs/', TemplateView.as_view(template_name="index.html"), name='api_docs'),
+              ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL)

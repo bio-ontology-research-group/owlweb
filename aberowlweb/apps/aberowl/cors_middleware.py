@@ -9,12 +9,13 @@ class CorsMiddleware(object):
         response = self.get_response(request)
         request_url = request.get_full_path()
         if '/api/dlquery' not in request_url:
-            if (request.method == "OPTIONS"  and "HTTP_ACCESS_CONTROL_REQUEST_METHOD" in request.META):
+            if request.method == "OPTIONS" and "HTTP_ACCESS_CONTROL_REQUEST_METHOD" in request.META:
                 response = http.HttpResponse()
                 response["Content-Length"] = "0"
                 response["Access-Control-Max-Age"] = 86400
 
             response["Access-Control-Allow-Origin"] = "*"
-            response["Access-Control-Allow-Headers"] = "accept, accept-encoding, authorization, content-type, origin, x-csrftoken, x-requested-with"
-            
+            response[
+                "Access-Control-Allow-Headers"] = "accept, accept-encoding, authorization, content-type, origin, x-csrftoken, x-requested-with"
+
         return response

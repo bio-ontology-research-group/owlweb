@@ -1,10 +1,9 @@
 from django import forms
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db.models import Max
-from subprocess import Popen, PIPE, DEVNULL
-import json
-from aberowl.tasks import classify_ontology, reload_ontology, index_submission
-from aberowl.models import Ontology, Submission
+from .tasks import classify_ontology, reload_ontology, index_submission
+from .models import Ontology, Submission
 import shutil
 import os
 from django.conf import settings
@@ -12,8 +11,8 @@ from django.conf import settings
 ABEROWL_SERVER_URL = getattr(
     settings, 'ABEROWL_SERVER_URL', 'http://localhost/')
 
-class OntologyForm(forms.ModelForm):
 
+class OntologyForm(forms.ModelForm):
     class Meta:
         model = Ontology
         fields = ('acronym', 'name', 'species', 'topics')
@@ -21,7 +20,7 @@ class OntologyForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super(OntologyForm, self).__init__(*args, **kwargs)
-        
+
     def save(self):
         if not self.instance.pk:
             self.instance = super(OntologyForm, self).save(commit=False)
@@ -31,14 +30,12 @@ class OntologyForm(forms.ModelForm):
             self.instance.date_modified = timezone.now()
         self.instance.save()
         return self.instance
-        
 
 
 class SubmissionForm(forms.ModelForm):
-
     version = forms.CharField()
     ontology_file = forms.FileField(required=False)
-    
+
     class Meta:
         model = Submission
         fields = (
@@ -50,7 +47,6 @@ class SubmissionForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         self.ontology = kwargs.pop('ontology', None)
         super(SubmissionForm, self).__init__(*args, **kwargs)
-
 
     def clean_ontology_file(self):
         ontology_file = self.cleaned_data['ontology_file']
@@ -64,15 +60,15 @@ class SubmissionForm(forms.ModelForm):
                 self.metrics = result
             else:
                 raise forms.ValidationError('Unloadable ontology file')
-            
+
         return ontology_file
-    
+
     def save(self):
         if self.instance.pk is None:
             self.instance = super(SubmissionForm, self).save(commit=False)
             self.instance.ontology = self.ontology
             submission_id = self.ontology.submissions.aggregate(
-               Max('submission_id'))['submission_id__max'] or 0
+                Max('submission_id'))['submission_id__max'] or 0
             submission_id += 1
             self.instance.submission_id = submission_id
             self.instance.date_created = timezone.now()
@@ -102,4 +98,3 @@ class SubmissionForm(forms.ModelForm):
         self.instance.save()
         index_submission.delay(self.ontology.pk, self.instance.pk)
         return self.instance
-    

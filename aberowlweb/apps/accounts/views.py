@@ -5,11 +5,10 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.generic import DetailView, UpdateView
 from django.contrib.auth.models import User
-from accounts.forms import UserProfileForm
-from accounts.models import UserProfile
-from aberowl.models import Ontology
+from .forms import UserProfileForm
+from .models import UserProfile
 
-    
+
 class ProfileDetailView(DetailView):
     model = User
     template_name = 'account/profile/view.html'
@@ -27,7 +26,6 @@ class ProfileDetailView(DetailView):
 
 
 class ProfileUpdateView(UpdateView):
-
     form_class = UserProfileForm
     model = UserProfile
     template_name = 'account/profile/edit.html'

@@ -1,20 +1,18 @@
 from django.views.generic import CreateView, UpdateView, ListView
 from django.urls import reverse
-from aberowl.models import Ontology, Submission
-from aberowl.forms import OntologyForm, SubmissionForm
+from .models import Ontology, Submission
+from .forms import OntologyForm, SubmissionForm
 from aberowlweb.mixins import FormRequestMixin, ActionMixin
 from django.shortcuts import get_object_or_404
-from aberowl.tasks import reload_ontology
+from .tasks import reload_ontology
 from django.conf import settings
 from django.contrib import messages
-
 
 ABEROWL_SERVER_URL = getattr(
     settings, 'ABEROWL_SERVER_URL', 'http://localhost/')
 
 
 class MyOntologyListView(ActionMixin, ListView):
-
     model = Ontology
     template_name = 'aberowl/manage/list_ontology.html'
 
@@ -43,13 +41,9 @@ class MyOntologyListView(ActionMixin, ListView):
             messages.error(
                 request,
                 'Ontology %s does not have any submission!' % (ont.acronym,))
-        
-        
 
-    
-    
+
 class OntologyCreateView(FormRequestMixin, CreateView):
-
     model = Ontology
     form_class = OntologyForm
     template_name = 'aberowl/manage/edit_ontology.html'
@@ -60,7 +54,6 @@ class OntologyCreateView(FormRequestMixin, CreateView):
 
 
 class OntologyUpdateView(FormRequestMixin, UpdateView):
-
     model = Ontology
     form_class = OntologyForm
     template_name = 'aberowl/manage/edit_ontology.html'
@@ -68,7 +61,7 @@ class OntologyUpdateView(FormRequestMixin, UpdateView):
     def get_success_url(self):
         return reverse('list_ontology')
 
-    
+
 class OntologyMixin(object):
 
     def get_ontology(self):
@@ -90,9 +83,7 @@ class OntologyMixin(object):
         return context
 
 
-
 class SubmissionCreateView(FormRequestMixin, OntologyMixin, CreateView):
-
     model = Submission
     form_class = SubmissionForm
     template_name = 'aberowl/manage/edit_submission.html'
@@ -100,8 +91,8 @@ class SubmissionCreateView(FormRequestMixin, OntologyMixin, CreateView):
     def get_success_url(self):
         return reverse('list_ontology')
 
-class SubmissionUpdateView(FormRequestMixin, OntologyMixin, UpdateView):
 
+class SubmissionUpdateView(FormRequestMixin, OntologyMixin, UpdateView):
     model = Submission
     form_class = SubmissionForm
     template_name = 'aberowl/manage/edit_submission.html'

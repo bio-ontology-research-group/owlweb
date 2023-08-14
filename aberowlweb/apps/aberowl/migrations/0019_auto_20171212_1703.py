@@ -36,17 +36,17 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='submission',
             name='products',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, null=True),
+            field=models.JSONField(blank=True, null=True),
         ),
         migrations.AddField(
             model_name='submission',
             name='publications',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, null=True),
+            field=models.JSONField(blank=True, null=True),
         ),
         migrations.AddField(
             model_name='submission',
             name='taxon',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, null=True),
+            field=models.JSONField(blank=True, null=True),
         ),
         migrations.AlterUniqueTogether(
             name='submission',

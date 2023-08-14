@@ -1,28 +1,22 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-
+import json
 from django.views.generic import TemplateView, DetailView, ListView
 import requests
 from django.conf import settings
 from django.http import Http404
-import redis
-from aberowl import redis_pool
-import json
-
-from aberowl.models import Ontology, Submission
-from aberowl.serializers import OntologySerializer, SubmissionSerializer
+from .models import Ontology
+from .serializers import OntologySerializer
 from aberowlweb.apps.aberowl.ont_server_request_processor import OntServerRequestProcessor
 from rest_framework.renderers import JSONRenderer
-
 
 ABEROWL_API_URL = getattr(
     settings, 'ABEROWL_API_URL', 'http://localhost/')
 
-
 ont_server = OntServerRequestProcessor()
 
-class MainView(TemplateView):
 
+class MainView(TemplateView):
     template_name = 'aberowl/main.html'
 
     def get_context_data(self, *args, **kwargs):
@@ -31,7 +25,6 @@ class MainView(TemplateView):
 
 
 class OntologyListView(ListView):
-
     template_name = 'aberowl/list_ontologies.html'
     model = Ontology
 
@@ -45,7 +38,6 @@ class OntologyListView(ListView):
 
 
 class OntologyDetailView(DetailView):
-
     template_name = 'aberowl/view_ontology.html'
     model = Ontology
     slug_field = 'acronym'
@@ -57,7 +49,7 @@ class OntologyDetailView(DetailView):
         submission = ontology.get_latest_submission()
         if submission is None:
             raise Http404
-        
+
         data = OntologySerializer(ontology).data
         data['classes'] = []
         data['properties'] = []
@@ -78,7 +70,7 @@ class OntologyDetailView(DetailView):
                 print(res)
         except Exception as e:
             print(e)
-        
+
         downloads = []
         for sub in ontology.submissions.all().order_by('-date_released'):
             downloads.append([

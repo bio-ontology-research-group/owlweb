@@ -1,20 +1,20 @@
-from celery import task
-from celery.task.schedules import crontab
-from celery.task import periodic_task
+from celery import shared_task
+from celery import Celery
+
+from celery.schedules import crontab
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db.models import Max
 from django.utils import timezone
 import requests
 import shutil
-from aberowl.models import Ontology, Submission
+from .models import Ontology, Submission
 from django.db.models import F
 from subprocess import Popen, PIPE, DEVNULL
 import json
-import random
 import os
 
-
+app = Celery('AberOwl')
 BIOPORTAL_API_URL = getattr(
     settings, 'BIOPORTAL_API_URL', 'http://data.bioontology.org/')
 BIOPORTAL_API_KEY = getattr(
@@ -41,7 +41,8 @@ ELASTIC_ONTOLOGY_INDEX_NAME = getattr(
 ELASTIC_CLASS_INDEX_NAME = getattr(
     settings, 'ELASTIC_CLASS_INDEX_NAME', 'aberowl_owlclass')
 
-@periodic_task(run_every=crontab(hour=12, minute=0, day_of_week=1))
+
+@app.task(run_every=crontab(hour=12, minute=0, day_of_week=1))
 def sync_obofoundry():
     user = User.objects.get(pk=1)
     timeout = 120
@@ -88,7 +89,7 @@ def sync_obofoundry():
                 os.makedirs(filedir)
             filename = download_url.split('/')[-1]
             file_ext = filename.split('.')[1]
-            filepath =  filedir + filename
+            filepath = filedir + filename
             p = Popen(['curl', '-L', download_url, '-o', filepath])
             if p.wait() == 0:
                 p = Popen(['md5sum', filepath], stdout=PIPE)
@@ -98,16 +99,16 @@ def sync_obofoundry():
                     print('MD5SUM:', md5sum)
                     p.stdout.close()
                     queryset = ontology.submissions.filter(md5sum=md5sum)
-                    if queryset.exists(): # Already uptodate
+                    if queryset.exists():  # Already uptodate
                         continue
             else:
                 print('Downloading ontology %s failed!' % (acronym,))
                 continue
-            
+
             submission_id = ontology.submissions.aggregate(
-               Max('submission_id'))['submission_id__max'] or 0
+                Max('submission_id'))['submission_id__max'] or 0
             submission_id += 1
-            
+
             submission = Submission(
                 ontology=ontology,
                 submission_id=submission_id,
@@ -123,7 +124,7 @@ def sync_obofoundry():
                 domain=onto.get('domain', None),
                 md5sum=md5sum,
             )
-            
+
             shutil.move(filepath, submission.get_filepath())
             shutil.copyfile(
                 submission.get_filepath(),
@@ -150,12 +151,12 @@ def sync_obofoundry():
 
             if submission.classifiable:
                 index_submission(ontology.pk, submission.pk)
-            
+
         except Exception as e:
             print(acronym, e)
 
-    
-@periodic_task(run_every=crontab(hour=12, minute=0, day_of_week=2))
+
+@app.task(run_every=crontab(hour=12, minute=0, day_of_week=2))
 def sync_bioportal():
     user = User.objects.get(pk=1)
     params = {
@@ -180,8 +181,8 @@ def sync_bioportal():
         return
 
     params['display'] = (
-        'hasOntologyLanguage,released,creationDate,homepage,status,' +
-        'publication,documentation,version,description,submissionId')
+            'hasOntologyLanguage,released,creationDate,homepage,status,' +
+            'publication,documentation,version,description,submissionId')
     for onto in data:
         acronym = onto['acronym']
         try:
@@ -214,7 +215,7 @@ def sync_bioportal():
 
             queryset = ontology.submissions.filter(
                 submission_id=sub['submissionId'])
-            if queryset.exists(): # Already uptodate
+            if queryset.exists():  # Already uptodate
                 submission = queryset.get()
                 if not submission.indexed and submission.classifiable:
                     index_submission(ontology.pk, submission.pk)
@@ -233,7 +234,7 @@ def sync_bioportal():
                 version=sub['version']
             )
             download_url = (BIOPORTAL_API_URL + 'ontologies/' + acronym
-                        + '/download?apikey=' + BIOPORTAL_API_KEY)
+                            + '/download?apikey=' + BIOPORTAL_API_KEY)
             filepath = submission.get_filepath() + '.donwload'
             p = Popen(['curl', '-L', download_url, '-o', filepath])
             if p.wait() == 0:
@@ -265,12 +266,12 @@ def sync_bioportal():
 
             if submission.classifiable:
                 index_submission(ontology.pk, submission.pk)
-            
+
         except Exception as e:
             print(acronym, e)
 
 
-@task
+@shared_task
 def classify_ontology(filepath):
     p = Popen(
         ['groovy', 'Classify.groovy', filepath],
@@ -282,9 +283,9 @@ def classify_ontology(filepath):
     return {'classifiable': False}
 
 
-@task
-def index_submission(ontology_pk, submission_pk, skip_embedding = True, es_url=ELASTIC_SEARCH_URL, 
-                        es_username=ELASTIC_SEARCH_USERNAME, es_password=ELASTIC_SEARCH_PASSWORD):
+@shared_task
+def index_submission(ontology_pk, submission_pk, skip_embedding=True, es_url=ELASTIC_SEARCH_URL,
+                     es_username=ELASTIC_SEARCH_USERNAME, es_password=ELASTIC_SEARCH_PASSWORD):
     ontology = Ontology.objects.get(pk=ontology_pk)
     submission = ontology.submissions.get(pk=submission_pk)
     filepath = '../' + submission.get_filepath(folder='latest')
@@ -293,7 +294,7 @@ def index_submission(ontology_pk, submission_pk, skip_embedding = True, es_url=E
 
     p = Popen(
         ['groovy', 'IndexElastic.groovy', es_url, es_username, es_password,
-        ELASTIC_ONTOLOGY_INDEX_NAME,  ELASTIC_CLASS_INDEX_NAME, filepath, str(skip_embedding)],
+         ELASTIC_ONTOLOGY_INDEX_NAME, ELASTIC_CLASS_INDEX_NAME, filepath, str(skip_embedding)],
         stdin=PIPE,
         cwd='scripts/')
     data = {
@@ -312,14 +313,15 @@ def index_submission(ontology_pk, submission_pk, skip_embedding = True, es_url=E
 
     submission.save()
 
-@task
-def reload_ontology(ont, ontIRI = None):
+
+@shared_task
+def reload_ontology(ont, ontIRI=None):
     if ontIRI is None:
-        ontologies =  Ontology.objects.filter(acronym=ont)
+        ontologies = Ontology.objects.filter(acronym=ont)
         if len(ontologies) > 0:
             submission = ontologies[0].get_latest_submission()
             ontIRI = ABEROWL_SERVER_URL + submission.get_filepath()
-    
+
     responses = []
     for api_worker_url in ABEROWL_API_WORKERS:
         print('Running request: ', api_worker_url)
@@ -331,19 +333,19 @@ def reload_ontology(ont, ontIRI = None):
     return responses
 
 
-@periodic_task(run_every=crontab(hour=12, minute=0, day_of_week=1))
+@app.task(run_every=crontab(hour=12, minute=0, day_of_week=1))
 def retry_unloadable_ontology():
-    ontologies =  Ontology.objects.filter(
-            status=Ontology.UNLOADABLE)
-    
+    ontologies = Ontology.objects.filter(
+        status=Ontology.UNLOADABLE)
+
     unloadable = []
-    for ont in ontologies :
+    for ont in ontologies:
         results = reload_ontology(ont.acronym)
-        ontResult = { 'ontology': ont.acronym, 'results': []}
+        ontResult = {'ontology': ont.acronym, 'results': []}
         for result in results:
             if result['status'] and result['status'] == 'ok':
                 ontResult['results'].append(True)
-            else :
+            else:
                 ontResult['results'].append(False)
         unloadable.append(ontResult)
 
@@ -351,16 +353,19 @@ def retry_unloadable_ontology():
         server_count = 0
         for result in ontology['results']:
             if result:
-                server_count += 1 
-            else :
+                server_count += 1
+            else:
                 server_count -= 1
 
-        if server_count == len(ABEROWL_API_WORKERS):      
-            try:                
-                Ontology.objects.filter(acronym=ont.acronym).update(status=Ontology.CLASSIFIED, nb_servers=F('nb_servers') + server_count)
+        if server_count == len(ABEROWL_API_WORKERS):
+            try:
+                Ontology.objects.filter(acronym=ontology.acronym).update(status=Ontology.CLASSIFIED,
+                                                                         nb_servers=F('nb_servers') + server_count)
             except Exception as e:
-                    print('Exception:', e)           
-@task
+                print('Exception:', e)
+
+
+@shared_task
 def generate_embeddings(filepath):
     p = Popen(
         ['groovy', 'Axioms.groovy', filepath],
@@ -381,23 +386,25 @@ def generate_embeddings(filepath):
     return result
 
 
-@task
-def reload_indexes(skip_embedding, es_url=ELASTIC_SEARCH_URL, es_username=ELASTIC_SEARCH_USERNAME, es_password=ELASTIC_SEARCH_PASSWORD):
-    try: 
-        ontologies =  Ontology.objects.filter(
+@shared_task
+def reload_indexes(skip_embedding, es_url=ELASTIC_SEARCH_URL, es_username=ELASTIC_SEARCH_USERNAME,
+                   es_password=ELASTIC_SEARCH_PASSWORD):
+    try:
+        ontologies = Ontology.objects.filter(
             status=Ontology.CLASSIFIED)
-        for ontology in ontologies :
+        for ontology in ontologies:
             submission = ontology.get_latest_submission()
             print('Indexing ontology %s started' % (ontology.acronym))
             index_submission(ontology.pk, submission.pk, skip_embedding, es_url, es_username, es_password)
 
     except Exception as e:
-            print(e)
+        print(e)
 
-@task
+
+@shared_task
 def reload_index(ontology_acronym):
-    try: 
-        ontologies =  Ontology.objects.filter(
+    try:
+        ontologies = Ontology.objects.filter(
             acronym=ontology_acronym, status=Ontology.CLASSIFIED)
         if len(ontologies) > 0:
             submission = ontologies[0].get_latest_submission()
@@ -405,4 +412,4 @@ def reload_index(ontology_acronym):
             index_submission(ontologies[0].pk, submission.pk)
 
     except Exception as e:
-            print(e)
+        print(e)

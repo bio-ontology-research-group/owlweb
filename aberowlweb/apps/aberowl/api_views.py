@@ -1,34 +1,21 @@
-from rest_framework.views import APIView
-from rest_framework.generics import ListAPIView
-from rest_framework.response import Response
-from urllib import parse
-from rest_framework.parsers import FormParser, MultiPartParser
-
-import coreapi
+from urllib.parse import urlencode
+import logging
+import re
 import requests
-import json
-import itertools
-
+from django.conf import settings
+from django.core.paginator import Paginator
 from django.http import HttpResponse, HttpResponseRedirect
 from django.http import HttpResponseNotFound
-from django.conf import settings
-from django.shortcuts import redirect
-from urllib.parse import urlencode
-from collections import defaultdict
-from gevent.pool import Pool
-import time
+from elasticsearch import Elasticsearch
+from expiringdict import ExpiringDict
+from rest_framework.generics import ListAPIView
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from aberowlweb.apps.aberowl.ont_server_request_processor import OntServerRequestProcessor
-from aberowl.models import Ontology
-from aberowl.serializers import OntologySerializer
-from elasticsearch import Elasticsearch
-
-from django.core.paginator import Paginator, QuerySetPaginator
-from expiringdict import ExpiringDict
-
-import re
-
-import logging
+from .models import Ontology
+from .serializers import OntologySerializer
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +44,9 @@ es = None
 esUrl = ELASTIC_SEARCH_URL.split(",")
 if ELASTIC_SEARCH_USERNAME and ELASTIC_SEARCH_PASSWORD:
     es = Elasticsearch(esUrl, http_auth=(ELASTIC_SEARCH_USERNAME, ELASTIC_SEARCH_PASSWORD))
-else :
+else:
     es = Elasticsearch(esUrl)
+
 
 def make_request(url):
     try:
@@ -80,10 +68,12 @@ def search(indexName, query_data):
         print("elasticsearch err", e)
         return {'hits': {'hits': []}}
 
+
 def fix_iri_path_param(iri):
     iri = re.sub(r'(?!http:\/\/)(http:\/){1}', 'http://', iri)
     iri = re.sub(r'(?!https:\/\/)(https:\/){1}', 'https://', iri)
     return iri
+
 
 class FindClassByMethodStartWithAPIView(APIView):
 
@@ -103,12 +93,12 @@ class FindClassByMethodStartWithAPIView(APIView):
                  'message': 'ontology is required'})
         try:
             query_list = [
-                { 'match': { 'ontology': ontology } },
-                { 'match_bool_prefix': { 'label': query.lower() } }
+                {'match': {'ontology': ontology}},
+                {'match_bool_prefix': {'label': query.lower()}}
             ]
             docs = {
-                'query': { 'bool': { 'must': query_list , 'filter': { 'term': { 'deprecated': False } } } },
-                '_source': {'excludes': ['embedding_vector',]}
+                'query': {'bool': {'must': query_list, 'filter': {'term': {'deprecated': False}}}},
+                '_source': {'excludes': ['embedding_vector', ]}
             }
             result = search(ELASTIC_CLASS_INDEX_NAME, docs)
             data = []
@@ -121,10 +111,11 @@ class FindClassByMethodStartWithAPIView(APIView):
         except Exception as e:
             return Response({'status': 'exception', 'message': str(e)})
 
+
 class FindClassAPIView(APIView):
 
     def get(self, request, format=None):
-        
+
         query = request.GET.get('query', None)
         ontology = request.GET.get('ontology', None)
         if query is None:
@@ -132,25 +123,25 @@ class FindClassAPIView(APIView):
                 {'status': 'error',
                  'message': 'Please provide query parameter!'})
         should = [
-            {'match': { 'oboid' : { 'query': query, 'boost': 150 }}},
-            {'match': { 'label' : { 'query': query, 'boost': 100 }}},
-            {'match': { 'synonym' : { 'query': query, 'boost': 50 }}},
-            {'match': { 'definition' : { 'query': query, 'boost': 30 }}},
+            {'match': {'oboid': {'query': query, 'boost': 150}}},
+            {'match': {'label': {'query': query, 'boost': 100}}},
+            {'match': {'synonym': {'query': query, 'boost': 50}}},
+            {'match': {'definition': {'query': query, 'boost': 30}}},
         ]
         es_query = None
         if ontology is not None:
-            ontology = { 'match': { 'ontology': { 'query': ontology } } }
-            es_query = { 'bool': { 'should': should, 'must': ontology, 'filter': { 'term': { 'deprecated': False } } } }
+            ontology = {'match': {'ontology': {'query': ontology}}}
+            es_query = {'bool': {'should': should, 'must': ontology, 'filter': {'term': {'deprecated': False}}}}
         else:
-            should.append({ 'terms': { 'ontology' : query.lower().split(), 'boost': 150 }})
-            es_query = { 'bool': { 'should': should, 'filter': { 'term': { 'deprecated': False } } } }
+            should.append({'terms': {'ontology': query.lower().split(), 'boost': 150}})
+            es_query = {'bool': {'should': should, 'filter': {'term': {'deprecated': False}}}}
 
         f_query = {
             'query': es_query,
-            '_source': {'excludes': ['embedding_vector',]},
+            '_source': {'excludes': ['embedding_vector', ]},
             'from': 0,
             'size': 100}
-        
+
         print(ontology, query)
         logger.info("Executing query:" + str(f_query))
 
@@ -172,6 +163,7 @@ class FindClassAPIView(APIView):
         result = {'status': 'ok', 'result': data}
         return Response(result)
 
+
 class MostSimilarAPIView(APIView):
 
     def get(self, request, format=None):
@@ -192,11 +184,11 @@ class MostSimilarAPIView(APIView):
         try:
             size = int(size)
             query_list = [
-                { 'term': { 'ontology': ontology } },
-                { 'term': { 'class': cls } }
+                {'term': {'ontology': ontology}},
+                {'term': {'class': cls}}
             ]
             docs = {
-                'query': { 'bool': { 'must': query_list } },
+                'query': {'bool': {'must': query_list}},
             }
             result = search(ELASTIC_CLASS_INDEX_NAME, docs)
             data = result['hits']['hits']
@@ -222,7 +214,7 @@ class MostSimilarAPIView(APIView):
                         }
                     }
                 },
-                "_source": {"excludes": ["embedding_vector",]},
+                "_source": {"excludes": ["embedding_vector", ]},
                 "size": size
             }
 
@@ -237,13 +229,11 @@ class MostSimilarAPIView(APIView):
             return Response({'status': 'exception', 'message': str(e)})
 
 
-
 # This API is depricated there is API defined for aberowl knowledge graph functions.
 class BackendAPIView(APIView):
 
     def __init__(self, *args, **kwargs):
         super(BackendAPIView, self).__init__(*args, **kwargs)
-    
 
     def get(self, request, format=None):
         query_string = request.GET.urlencode()
@@ -257,7 +247,7 @@ class BackendAPIView(APIView):
             return Response(
                 {'status': 'error',
                  'message': 'script is required'})
-        try: 
+        try:
             if ontology is not None:
                 queryset = Ontology.objects.filter(acronym=ontology)
                 if queryset.exists():
@@ -276,11 +266,11 @@ class BackendAPIView(APIView):
             elif ontology is None and script == 'runQuery.groovy' and query is not None and query_type is not None and offset is not None:
                 pages_key = query + ":" + query_type
                 if page_cache.get(pages_key):
-                    result = { 'status' : 'ok'}
+                    result = {'status': 'ok'}
                     result['result'] = page_cache.get(pages_key).page(offset).object_list
                     result['total'] = page_cache.get(pages_key).count
                     return Response(result)
-                else :
+                else:
                     queryset = Ontology.objects.filter(nb_servers__gt=0)
                     if queryset.exists():
                         url = ABEROWL_API_URL + script + '?' + query_string
@@ -306,7 +296,7 @@ class BackendAPIView(APIView):
                     raise Exception('API server is down!')
         except Exception as e:
             return Response({'status': 'exception', 'message': str(e)})
-        
+
 
 class FindOntologyAPIView(APIView):
 
@@ -317,15 +307,15 @@ class FindOntologyAPIView(APIView):
             return Response(
                 {'status': 'error',
                  'message': 'query field is required'})
-        
+
         fields = ['name', 'ontology', 'description']
         query_list = []
         for field in fields:
-            q = { 'match': { field: { 'query': query } } }
+            q = {'match': {field: {'query': query}}}
             query_list.append(q)
         omap = {
-            'query': { 'bool': { 'should': query_list } },
-            '_source': {'excludes': ['embedding_vector',]}
+            'query': {'bool': {'should': query_list}},
+            '_source': {'excludes': ['embedding_vector', ]}
         }
         result = search(ELASTIC_ONTOLOGY_INDEX_NAME, omap)
         data = []
@@ -335,6 +325,7 @@ class FindOntologyAPIView(APIView):
         data = sorted(data, key=lambda x: len(x['name']))
         return Response(data)
 
+
 class ListOntologyAPIView(ListAPIView):
     """
     get: Returns the list of all ontologies in aberowl
@@ -342,9 +333,9 @@ class ListOntologyAPIView(ListAPIView):
 
     queryset = Ontology.objects.all()
     serializer_class = OntologySerializer
-        
-class SparqlAPIView(APIView):
 
+
+class SparqlAPIView(APIView):
     parser_classes = [FormParser, MultiPartParser]
 
     def post(self, request):
@@ -377,15 +368,15 @@ class SparqlAPIView(APIView):
         try:
             url = ABEROWL_API_URL + 'sparql.groovy'
             logger.debug("URL:" + url)
-            response = requests.get(url, params = {'query': query})
+            response = requests.get(url, params={'query': query})
             if response.status_code == 400:
                 return HttpResponse(response.text)
             if response.status_code == 200:
-                content = response.json()    
-                
-                querystr = urlencode({'query':content['query'], 'format':res_format, 
-                    'timeout': 0, 'debug':'on', 'run': 'Run Query'}, doseq=True)
-                query_url=f"{content['endpoint'].strip()}?{querystr}"
+                content = response.json()
+
+                querystr = urlencode({'query': content['query'], 'format': res_format,
+                                      'timeout': 0, 'debug': 'on', 'run': 'Run Query'}, doseq=True)
+                query_url = f"{content['endpoint'].strip()}?{querystr}"
                 if ispost:
                     response = Response()
                     response['Location'] = query_url
@@ -408,21 +399,21 @@ class DLQueryAPIView(APIView):
         labels = request.GET.get('labels', None)
         offset = request.GET.get('offset', None)
         direct = request.GET.get('direct', 'true')
-        
+
         if query is None:
             return Response({'status': 'error', 'message': 'query is required'})
         if query_type is None:
             return Response({'status': 'error', 'message': 'type is required'})
 
-        try: 
+        try:
             if ontology is None and offset is not None:
                 pages_key = query + ":" + query_type
                 if page_cache.get(pages_key):
-                    result = { 'status' : 'ok'}
+                    result = {'status': 'ok'}
                     result['result'] = page_cache.get(pages_key).page(offset).object_list
                     result['total'] = page_cache.get(pages_key).count
                     return Response(result)
-                
+
                 else:
                     result = ont_server.execute_dl_query(query, query_type, None, axioms, labels, direct)
                     page_cache[pages_key] = Paginator(result['result'], DEFUALT_PAGE_SIZE)
@@ -430,29 +421,30 @@ class DLQueryAPIView(APIView):
                     result['total'] = page_cache.get(pages_key).count
                     result['status'] = 'ok'
                     return Response(result)
-            else:     
+            else:
                 result = ont_server.execute_dl_query(query, query_type, ontology, axioms, labels, direct)
                 result['status'] = 'ok'
                 result['total'] = len(result['result'])
                 return Response(result)
-                
+
         except Exception as e:
             logger.exception("message")
             return Response({'status': 'exception', 'message': str(e)})
-        
+
 
 class DLQueryLogsDownloadAPIView(APIView):
 
     def get(self, request, format=None):
         filename = 'aberowl-dl-logs.txt'
         file_path = '{log_folder}/{filename}'.format(log_folder=LOG_FOLDER, filename=filename)
-        try :
-            FilePointer = open(file_path,"r")
-            response = HttpResponse(FilePointer,content_type='text/plain')
+        try:
+            FilePointer = open(file_path, "r")
+            response = HttpResponse(FilePointer, content_type='text/plain')
             response['Content-Disposition'] = 'attachment; filename=' + filename
             return response
         except FileNotFoundError as e:
             return HttpResponseNotFound()
+
 
 class ListOntologyObjectPropertiesView(APIView):
     def get(self, request, acronym):
@@ -461,7 +453,7 @@ class ListOntologyObjectPropertiesView(APIView):
             result['status'] = 'ok'
             result['total'] = len(result['result'])
             return Response(result)
-                
+
         except Exception as e:
             return Response({'status': 'exception', 'message': str(e)})
 
@@ -473,9 +465,10 @@ class GetOntologyObjectPropertyView(APIView):
             result = ont_server.find_ontology_object_properties(acronym, property_iri)
             result['status'] = 'ok'
             return Response(result)
-                
+
         except Exception as e:
             return Response({'status': 'exception', 'message': str(e)})
+
 
 class GetOntologyClassView(APIView):
 
@@ -485,18 +478,18 @@ class GetOntologyClassView(APIView):
     def post(self, request, acronym, class_iri):
         return self.process_query(class_iri, acronym)
 
-
     def get(self, request, acronym, class_iri):
         class_iri = fix_iri_path_param(class_iri)
         return self.process_query(class_iri, acronym)
 
     def process_query(self, iri, ontology):
-        try: 
+        try:
             queryset = Ontology.objects.filter(acronym=ontology)
             if queryset.exists():
                 ontology = queryset.get()
                 if ontology.nb_servers:
-                    result = ont_server.execute_dl_query('<' + iri + '>', 'equivalent', ontology.acronym, 'false', None, 'true')
+                    result = ont_server.execute_dl_query('<' + iri + '>', 'equivalent', ontology.acronym, 'false', None,
+                                                         'true')
                     result['status'] = 'ok'
                     return Response(result)
                 else:
@@ -516,9 +509,10 @@ class FindOntologyRootClassView(APIView):
             result['status'] = 'ok'
             result['total'] = len(result['result'])
             return Response(result)
-                
+
         except Exception as e:
             return Response({'status': 'exception', 'message': str(e)})
+
 
 class ListInstanceAPIView(APIView):
     def get(self, request):
@@ -533,9 +527,10 @@ class ListInstanceAPIView(APIView):
         try:
             result = ont_server.find_by_ontology_and_class(ontology, class_iri)
             return Response(result)
-                
+
         except Exception as e:
             return Response({'status': 'exception', 'message': str(e)})
+
 
 class MatchSuperClasses(APIView):
     authentication_classes = []
