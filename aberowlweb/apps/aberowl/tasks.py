@@ -27,9 +27,11 @@ ELASTIC_SEARCH_PASSWORD = getattr(settings, 'ELASTIC_SEARCH_PASSWORD', '')
 ELASTIC_ONTOLOGY_INDEX_NAME = getattr(settings, 'ELASTIC_ONTOLOGY_INDEX_NAME', 'aberowl_ontology')
 ELASTIC_CLASS_INDEX_NAME = getattr(settings, 'ELASTIC_CLASS_INDEX_NAME', 'aberowl_owlclass')
 
+chem_ontologies = ('CHEBI', 'ENVO', 'REX', 'CHMO', 'PROCCHEMICAL', 'FIX', 'CHIRO', 'LIPRO', 'CHEMINF')
+
 
 @app.task(run_every=crontab(hour=12, minute=0, day_of_week=1))
-def sync_obofoundry():
+def sync_obofoundry(chem=False):
     user = User.objects.get(pk=1)
     timeout = 120
     params = {}
@@ -48,6 +50,9 @@ def sync_obofoundry():
 
     for onto in data['ontologies']:
         acronym = onto['id'].upper()
+        # only for chemical ontology
+        if chem and acronym not in chem_ontologies:
+            continue
         try:
             if 'is_obsolete' in onto and onto['is_obsolete']:
                 continue
@@ -143,7 +148,7 @@ def sync_obofoundry():
 
 
 @app.task(run_every=crontab(hour=12, minute=0, day_of_week=2))
-def sync_bioportal():
+def sync_bioportal(chem=False):
     user = User.objects.get(pk=1)
     params = {
         'apikey': BIOPORTAL_API_KEY,
@@ -171,6 +176,10 @@ def sync_bioportal():
             'publication,documentation,version,description,submissionId')
     for onto in data:
         acronym = onto['acronym']
+
+        # only for chemical ontology
+        if chem and acronym not in chem_ontologies:
+            continue
         try:
             r = requests.get(
                 BIOPORTAL_API_URL + 'ontologies/' + acronym + '/latest_submission',
