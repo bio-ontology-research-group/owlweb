@@ -5,8 +5,8 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.generic import DetailView, UpdateView
 from django.contrib.auth.models import User
-from .forms import UserProfileForm
-from .models import UserProfile
+from accounts.forms import UserProfileForm
+from accounts.models import UserProfile
 
 
 class ProfileDetailView(DetailView):

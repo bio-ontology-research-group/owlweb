@@ -13,9 +13,9 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from aberowlweb.apps.aberowl.ont_server_request_processor import OntServerRequestProcessor
-from .models import Ontology
-from .serializers import OntologySerializer
+from aberowl.ont_server_request_processor import OntServerRequestProcessor
+from aberowl.models import Ontology
+from aberowl.serializers import OntologySerializer
 
 logger = logging.getLogger(__name__)
 

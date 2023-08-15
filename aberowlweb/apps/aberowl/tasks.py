@@ -1,45 +1,31 @@
 from celery import shared_task
-from celery import Celery
-
 from celery.schedules import crontab
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.db.models import Max
+from django.db.models import Max, F
 from django.utils import timezone
 import requests
 import shutil
-from .models import Ontology, Submission
-from django.db.models import F
+from aberowlweb.celery import app
+from aberowl.models import Ontology, Submission
 from subprocess import Popen, PIPE, DEVNULL
 import json
 import os
 
-app = Celery('AberOwl')
-BIOPORTAL_API_URL = getattr(
-    settings, 'BIOPORTAL_API_URL', 'http://data.bioontology.org/')
-BIOPORTAL_API_KEY = getattr(
-    settings, 'BIOPORTAL_API_KEY', '24e0413e-54e0-11e0-9d7b-005056aa3316')
+BIOPORTAL_API_URL = getattr(settings, 'BIOPORTAL_API_URL', 'http://data.bioontology.org/')
+BIOPORTAL_API_KEY = getattr(settings, 'BIOPORTAL_API_KEY', '24e0413e-54e0-11e0-9d7b-005056aa3316')
 
-OBOFOUNDRY_API_URL = getattr(
-    settings, 'OBOFOUNDRY_API_URL', 'http://obofoundry.org/')
+OBOFOUNDRY_API_URL = getattr(settings, 'OBOFOUNDRY_API_URL', 'http://obofoundry.org/')
 
-ABEROWL_API_URL = getattr(
-    settings, 'ABEROWL_API_URL', 'http://localhost:8080/api/')
-ABEROWL_API_WORKERS = getattr(
-    settings, 'ABEROWL_API_WORKERS', ['http://localhost:8080/api/'])
-ABEROWL_SERVER_URL = getattr(
-    settings, 'ABEROWL_SERVER_URL', 'http://localhost/')
+ABEROWL_API_URL = getattr(settings, 'ABEROWL_API_URL', 'http://localhost:8080/api/')
+ABEROWL_API_WORKERS = getattr(settings, 'ABEROWL_API_WORKERS', ['http://localhost:8080/api/'])
+ABEROWL_SERVER_URL = getattr(settings, 'ABEROWL_SERVER_URL', 'http://localhost/')
 
-ELASTIC_SEARCH_URL = getattr(
-    settings, 'ELASTIC_SEARCH_URL', 'http://localhost:9200/')
-ELASTIC_SEARCH_USERNAME = getattr(
-    settings, 'ELASTIC_SEARCH_USERNAME', '')
-ELASTIC_SEARCH_PASSWORD = getattr(
-    settings, 'ELASTIC_SEARCH_PASSWORD', '')
-ELASTIC_ONTOLOGY_INDEX_NAME = getattr(
-    settings, 'ELASTIC_ONTOLOGY_INDEX_NAME', 'aberowl_ontology')
-ELASTIC_CLASS_INDEX_NAME = getattr(
-    settings, 'ELASTIC_CLASS_INDEX_NAME', 'aberowl_owlclass')
+ELASTIC_SEARCH_URL = getattr(settings, 'ELASTIC_SEARCH_URL', 'http://localhost:9200/')
+ELASTIC_SEARCH_USERNAME = getattr(settings, 'ELASTIC_SEARCH_USERNAME', '')
+ELASTIC_SEARCH_PASSWORD = getattr(settings, 'ELASTIC_SEARCH_PASSWORD', '')
+ELASTIC_ONTOLOGY_INDEX_NAME = getattr(settings, 'ELASTIC_ONTOLOGY_INDEX_NAME', 'aberowl_ontology')
+ELASTIC_CLASS_INDEX_NAME = getattr(settings, 'ELASTIC_CLASS_INDEX_NAME', 'aberowl_owlclass')
 
 
 @app.task(run_every=crontab(hour=12, minute=0, day_of_week=1))

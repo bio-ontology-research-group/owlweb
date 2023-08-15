@@ -2,8 +2,8 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db.models import Max
-from .tasks import classify_ontology, reload_ontology, index_submission
-from .models import Ontology, Submission
+from aberowl.tasks import classify_ontology, reload_ontology, index_submission
+from aberowl.models import Ontology, Submission
 import shutil
 import os
 from django.conf import settings

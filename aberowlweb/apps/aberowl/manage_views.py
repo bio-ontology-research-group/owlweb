@@ -1,10 +1,10 @@
 from django.views.generic import CreateView, UpdateView, ListView
 from django.urls import reverse
-from .models import Ontology, Submission
-from .forms import OntologyForm, SubmissionForm
+from aberowl.models import Ontology, Submission
+from aberowl.forms import OntologyForm, SubmissionForm
 from aberowlweb.mixins import FormRequestMixin, ActionMixin
 from django.shortcuts import get_object_or_404
-from .tasks import reload_ontology
+from aberowlweb.apps.aberowl.tasks import reload_ontology
 from django.conf import settings
 from django.contrib import messages
 

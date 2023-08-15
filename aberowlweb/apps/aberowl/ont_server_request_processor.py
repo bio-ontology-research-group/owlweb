@@ -1,6 +1,6 @@
 from enum import Enum
 
-from .models import Ontology
+from aberowl.models import Ontology
 
 from django.conf import settings
 

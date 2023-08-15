@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Ontology, Submission
+from aberowl.models import Ontology, Submission
 
 
 class SubmissionSerializer(serializers.ModelSerializer):

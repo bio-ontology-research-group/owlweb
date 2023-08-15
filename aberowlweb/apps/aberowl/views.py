@@ -5,9 +5,9 @@ from django.views.generic import TemplateView, DetailView, ListView
 import requests
 from django.conf import settings
 from django.http import Http404
-from .models import Ontology
-from .serializers import OntologySerializer
-from aberowlweb.apps.aberowl.ont_server_request_processor import OntServerRequestProcessor
+from aberowl.models import Ontology
+from aberowl.serializers import OntologySerializer
+from aberowl.ont_server_request_processor import OntServerRequestProcessor
 from rest_framework.renderers import JSONRenderer
 
 ABEROWL_API_URL = getattr(
