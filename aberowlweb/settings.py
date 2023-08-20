@@ -52,7 +52,7 @@ class BaseConfiguration(Configuration):
     # SECURITY WARNING: don't run with debug turned on in production!
     DEBUG = True
 
-    ALLOWED_HOSTS = ['*']
+    ALLOWED_HOSTS = ['10.254.145.20']
 
     ADMINS = [
         ('Maxat Kulmanov', 'coolmaksat@gmail.com'),
@@ -193,7 +193,7 @@ class BaseConfiguration(Configuration):
             'file': {
                 'level': 'DEBUG',
                 'class': 'logging.FileHandler',
-                'filename': '/tmp/aberowl.log',
+                'filename': '/opt/owlweb/aberowlweb/aberowl.log',
                 'formatter': 'file'
             },
             'console': {
@@ -270,11 +270,7 @@ class BaseConfiguration(Configuration):
     RABBIT_HOST = 'localhost'
     RABBIT_PORT = 5672
 
-    CELERY_BROKER_URL = 'pyamqp://{user}:{pwd}@{host}:{port}//'.format(
-        user=os.environ.get('RABBIT_USER', config['celery']['CELERY_BROKER_USER']),
-        pwd=os.environ.get('RABBIT_PASSWORD', config['celery']['CELERY_BROKER_PASSWORD']),
-        host=RABBIT_HOST,
-        port=RABBIT_PORT)
+    CELERY_BROKER_URL = 'redis://localhost:6379/0'
 
     CELERY_RESULT_BACKEND = 'rpc://'
     CELERY_WORKER_CONCURRENCY = 24
@@ -341,13 +337,12 @@ class Development(BaseConfiguration):
 
 
 class Production(BaseConfiguration):
-    DEBUG = False
+    DEBUG = True
     SITE_DOMAIN = 'aber-owl.net'
-    ABEROWL_API_URL = 'http://10.254.146.227:8080/api/'  # TODO: update to LB ip
+    ABEROWL_API_URL = 'http://10.254.145.20:8080/api/'  # TODO: update to LB ip
     ABEROWL_API_WORKERS = [
-        'http://10.254.146.227:8080/api/',
-        'http://10.254.146.61:8080/api/']
-    ABEROWL_SERVER_URL = 'http://10.254.147.137/'
+        'http://10.254.145.20:8080/api/']
+    ABEROWL_SERVER_URL = 'http://10.254.145.20/'
     DLQUERY_LOGS_FOLDER = 'dl'
     # SESSION_COOKIE_SECURE=True
     # SESSION_COOKIE_HTTPONLY=True
@@ -357,11 +352,10 @@ class Production(BaseConfiguration):
 class ProductionCelery(BaseConfiguration):
     DEBUG = False
     SITE_DOMAIN = 'aber-owl.net'
-    ABEROWL_API_URL = 'http://10.254.145.41/api/'
+    ABEROWL_API_URL = 'http://10.254.145.20:8080/api/'
     ABEROWL_API_WORKERS = [
-        'http://10.254.146.227:8080/api/',
-        'http://10.254.146.61:8080/api/']
-    ABEROWL_SERVER_URL = 'http://10.254.147.137/'
+        'http://10.254.145.20:8080/api/']
+    ABEROWL_SERVER_URL = 'http://10.254.145.20/'
 
 
 class TestConfiguration(BaseConfiguration):

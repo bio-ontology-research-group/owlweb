@@ -33,7 +33,7 @@ class OntologyListView(ListView):
         ontologies = self.get_queryset().filter(
             status=Ontology.CLASSIFIED, nb_servers__gt=0)
         data = OntologySerializer(ontologies, many=True).data
-        context['ontologies'] = JSONRenderer().render(data)
+        context['ontologies'] = json.dumps(data)
         return context
 
 
