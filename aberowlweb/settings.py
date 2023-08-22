@@ -52,7 +52,7 @@ class BaseConfiguration(Configuration):
     # SECURITY WARNING: don't run with debug turned on in production!
     DEBUG = True
 
-    ALLOWED_HOSTS = ['10.254.145.20']
+    ALLOWED_HOSTS = ['10.254.145.20', 'chem.aber-owl.net']
 
     ADMINS = [
         ('Maxat Kulmanov', 'coolmaksat@gmail.com'),

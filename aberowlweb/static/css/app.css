@@ -8,8 +8,8 @@ body {
 }
 
 .navbar-aberowl {
-  background-color: #c7b58a;
-  border-color: #c7b58a;
+  background-color: #312E56;
+  border-color: #312E56;
   min-height:70px;
 }
 .navbar-aberowl .navbar-brand {
@@ -40,7 +40,7 @@ body {
 .navbar-aberowl .navbar-nav > .active > a:hover,
 .navbar-aberowl .navbar-nav > .active > a:focus {
   color: #fff;
-  background-color: #c7b5aa;
+  background-color: #5B7BB4;
 }
 
 .aberowl-footer {

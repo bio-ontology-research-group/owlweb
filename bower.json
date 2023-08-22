@@ -1,6 +1,6 @@
 {
   "name": "aberowlweb",
-  "description": "AberOWL Repository",
+  "description": "ChOWL Repository",
   "main": "index.js",
   "authors": [
     "Maxat Kulmanov"

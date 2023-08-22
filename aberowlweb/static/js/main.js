@@ -574,10 +574,10 @@ class Main extends React.Component {
     render() {
 	return (
 	<div class="container">
-	    <h1 align="center"><span>AberOWL ontology repository and semantic search engine</span></h1>
+	    <h1 align="center"><span>ChOWL ontology repository and semantic search engine</span></h1>
 	    <div class="row">
 	        <p>
-		    Type any term or phrase to search the AberOWL ontology
+		    Type any term or phrase to search the ChOWL ontology
 		    repository for a class with label (try <a href="#/pancreas">pancreas</a>), 
 			class description containing searched phrase or part of it (try <a href="#/sugar binding go" >sugar binding GO</a>),
 		    using class OBO ID (try <a href="#/PATO:0001234">PATO:0001234</a>),
