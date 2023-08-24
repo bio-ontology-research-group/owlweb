@@ -22,6 +22,7 @@ from django.views.generic import TemplateView
 
 urlpatterns = [
                   path('', include('aberowl.urls')),
+                  path('__debug__/', include('debug_toolbar.urls')),
                   path('admin/', admin.site.urls),
                   path('accounts/', include('accounts.urls')),
                   path('about/', AboutPageView.as_view(), name='about'),

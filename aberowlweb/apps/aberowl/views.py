@@ -8,7 +8,6 @@ from django.http import Http404
 from aberowl.models import Ontology
 from aberowl.serializers import OntologySerializer
 from aberowl.ont_server_request_processor import OntServerRequestProcessor
-from rest_framework.renderers import JSONRenderer
 
 ABEROWL_API_URL = getattr(
     settings, 'ABEROWL_API_URL', 'http://localhost/')
