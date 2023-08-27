@@ -8,12 +8,21 @@ import os
 import shutil
 import configparser
 
+import environ
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def rel(*x):
     return os.path.join(os.path.abspath(os.path.dirname(__file__)), *x)
 
+
+env = environ.Env()
+
+READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
+if READ_DOT_ENV_FILE:
+    # OS environment variables take precedence over variables from .env
+    env.read_env(str(BASE_DIR / ".env"))
 
 sys.path.insert(0, rel('apps'))
 
@@ -33,11 +42,12 @@ class BaseConfiguration(Configuration):
     global config
 
     # SECURITY WARNING: keep the secret key used in production secret!
-    SECRET_KEY = 'm^a2@&q12j-t1$*sf+@5#mqbd3b6inp)w)y&)sgalm0g*)^)&q'
+    # SECRET_KEY = 'm^a2@&q12j-t1$*sf+@5#mqbd3b6inp)w)y&)sgalm0g*)^)&q'
+    SECRET_KEY = env('DJANGO_SECRET_KEY', default='m^a2@&q12j-t1$*sf+@5#mqbd3b6inp)w)y&)sgalm0g*)^)&q')
 
-    DEBUG = True
+    DEBUG = env.bool('DJANGO_DEBUG', True)
 
-    ALLOWED_HOSTS = ['localhost', '10.254.145.20', 'chem.aber-owl.net']
+    ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=['localhost', '127.0.0.1'])
 
     ADMINS = [
         ('Maxat Kulmanov', 'coolmaksat@gmail.com'),
@@ -138,14 +148,10 @@ class BaseConfiguration(Configuration):
     # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 
     DATABASES = {
-        'default': {
-            'ENGINE': config['database']['DATABASE_ENGINE'],
-            'NAME': config['database']['DATABASE_NAME'],
-            'HOST': config['database']['DATABASE_HOST'],
-            'USER': config['database']['DATABASE_USER'],
-            'PASSWORD': config['database']['DATABASE_PASSWORD'],
-        }
+        'default': env.db("DATABASE_URL",
+                          default='postgres://owl:owl@127.0.0.1:5432/owl', )
     }
+    DATABASES["default"]["ATOMIC_REQUESTS"] = True
     DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
     # Memcached
     CACHES = {
@@ -159,8 +165,6 @@ class BaseConfiguration(Configuration):
     }
 
     SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-
-    # STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.CachedStaticFilesStorage'
 
     # Password validation
     # https://docs.djangoproject.com/en/1.11/ref/settings/#auth-password-validators
@@ -195,7 +199,7 @@ class BaseConfiguration(Configuration):
             'file': {
                 'level': 'DEBUG',
                 'class': 'logging.FileHandler',
-                'filename': '/opt/owlweb/aberowlweb/aberowl.log',
+                'filename': env('LOGS_PATH', default='/tmp/aberowl.log'),
                 'formatter': 'file'
             },
             'console': {
@@ -325,11 +329,11 @@ class BaseConfiguration(Configuration):
         messages.ERROR: 'list-group-item-danger',
     }
 
-    ELASTIC_SEARCH_URL = config['elasticsearch']['ELASTIC_SEARCH_URL']
-    ELASTIC_SEARCH_USERNAME = config['elasticsearch']['ELASTIC_SEARCH_USERNAME']
-    ELASTIC_SEARCH_PASSWORD = config['elasticsearch']['ELASTIC_SEARCH_PASSWORD']
-    ELASTIC_ONTOLOGY_INDEX_NAME = config['elasticsearch']['ELASTIC_ONTOLOGY_INDEX_NAME']
-    ELASTIC_CLASS_INDEX_NAME = config['elasticsearch']['ELASTIC_CLASS_INDEX_NAME']
+    ELASTIC_SEARCH_URL = env('ELASTIC_SEARCH_URL', default='http://localhost:9100/')
+    ELASTIC_SEARCH_USERNAME = env('ELASTIC_SEARCH_USERNAME', default='elastic')
+    ELASTIC_SEARCH_PASSWORD = env('ELASTIC_SEARCH_PASSWORD', default='test123')
+    ELASTIC_ONTOLOGY_INDEX_NAME = env('ELASTIC_ONTOLOGY_INDEX_NAME', default='aberowl_ontology')
+    ELASTIC_CLASS_INDEX_NAME = env('ELASTIC_CLASS_INDEX_NAME', default='aberowl_owlclass')
 
     DLQUERY_LOGS_FOLDER = 'dl'
 
@@ -339,7 +343,8 @@ class Development(BaseConfiguration):
 
 
 class Production(BaseConfiguration):
-    DEBUG = True
+    DEBUG = env.bool('DJANGO_DEBUG', True)
+
     SITE_DOMAIN = 'aber-owl.net'
     ABEROWL_API_URL = 'http://10.254.145.20:8080/api/'  # TODO: update to LB ip
     ABEROWL_API_WORKERS = [
@@ -352,7 +357,7 @@ class Production(BaseConfiguration):
 
 
 class ProductionCelery(BaseConfiguration):
-    DEBUG = False
+    DEBUG = env.bool('DJANGO_DEBUG', True)
     SITE_DOMAIN = 'aber-owl.net'
     ABEROWL_API_URL = 'http://10.254.145.20:8080/api/'
     ABEROWL_API_WORKERS = [
@@ -362,10 +367,7 @@ class ProductionCelery(BaseConfiguration):
 
 class TestConfiguration(BaseConfiguration):
     DATABASES = {
-        'default': {
-            'ENGINE': config['database']['DATABASE_ENGINE'],
-            'HOST': config['database']['DATABASE_HOST'],
-            'USER': config['database']['DATABASE_USER'],
-            'PASSWORD': config['database']['DATABASE_PASSWORD'],
-        }
+        'default': env.db("TEST_DATABASE_URL",
+                          default='postgres://owl:owl@127.0.0.1:5432/owl', )
     }
+    DATABASES["default"]["ATOMIC_REQUESTS"] = True
