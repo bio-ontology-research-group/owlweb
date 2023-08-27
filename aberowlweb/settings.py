@@ -4,7 +4,6 @@ from configurations import Configuration
 from kombu import Queue, Exchange
 from django.contrib import messages
 
-import os
 import shutil
 import configparser
 

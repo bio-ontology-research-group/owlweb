@@ -1,8 +1,7 @@
 import re
 from django.http import (
     Http404,
-    HttpResponseRedirect,
-    HttpResponse)
+    HttpResponseRedirect)
 
 ACTION_RE = re.compile(r'\w+')
 
@@ -14,7 +13,7 @@ class FormRequestMixin(object):
         kwargs['request'] = self.request
         return kwargs
 
-    
+
 class ActionMixin(object):
     """Mixin for managing actions
     """

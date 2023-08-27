@@ -27,6 +27,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='submission',
             name='has_ontology_language',
-            field=models.CharField(choices=[('OWL', 'OWL'), ('OBO', 'OBO'), ('SKOS', 'SKOS'), ('UMLS', 'UMLS')], max_length=15, verbose_name='Ontology Language'),
+            field=models.CharField(choices=[('OWL', 'OWL'), ('OBO', 'OBO'), ('SKOS', 'SKOS'), ('UMLS', 'UMLS')],
+                                   max_length=15, verbose_name='Ontology Language'),
         ),
     ]

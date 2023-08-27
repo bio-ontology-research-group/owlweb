@@ -1,6 +1,4 @@
-from django.core.management.base import BaseCommand, CommandError
-from django.db.models import F
-from aberowl.models import Ontology
+from django.core.management.base import BaseCommand
 
 from aberowl.tasks import reload_indexes
 
@@ -24,17 +22,17 @@ class Command(BaseCommand):
         parser.add_argument('elasticsearch_url', type=str, help='elasticsearch server')
         parser.add_argument('-u', '--elasticsearch_username', type=str, help='elasticsearch user name', )
         parser.add_argument('-p', '--elasticsearch_password', type=str, help='elasticsearch password', )
-    
+
     def stop_subprocesses(self, signum, frame):
         if self.proc.poll() is None:
             self.proc.kill()
         exit(0)
-                
+
     def handle(self, *args, **options):
         es_url = options['elasticsearch_url']
         es_username = options['elasticsearch_username']
         es_password = options['elasticsearch_password']
-        if  es_username and es_password:
+        if es_username and es_password:
             reload_indexes(True, es_url, es_username, es_password)
         else:
             reload_indexes(True, es_url)

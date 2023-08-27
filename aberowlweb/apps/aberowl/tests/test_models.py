@@ -30,4 +30,5 @@ class OntologySubmissionTestCase(TestCase):
 
     def test_submission_filepath(self):
         self.assertEqual(self.submission.get_filepath(),
-                         f'media/ontologies/{self.submission.ontology.acronym}/{self.submission.submission_id}/{self.submission.ontology.acronym}.owl')
+                         f'media/ontologies/{self.submission.ontology.acronym}/{self.submission.submission_id}/'
+                         f'{self.submission.ontology.acronym}.owl')

@@ -76,6 +76,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='submission',
             name='ontology',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='submissions', to='aberowl.Ontology'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
+                                    related_name='submissions', to='aberowl.Ontology'),
         ),
     ]

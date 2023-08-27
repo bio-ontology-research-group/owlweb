@@ -263,7 +263,8 @@ class BackendAPIView(APIView):
                         raise Exception('API server is down!')
                 else:
                     raise Exception('Ontology does not exist!')
-            elif ontology is None and script == 'runQuery.groovy' and query is not None and query_type is not None and offset is not None:
+            elif ontology is None and script == 'runQuery.groovy' and \
+                    query is not None and query_type is not None and offset is not None:
                 pages_key = query + ":" + query_type
                 if page_cache.get(pages_key):
                     result = {'status': 'ok'}
@@ -442,7 +443,7 @@ class DLQueryLogsDownloadAPIView(APIView):
             response = HttpResponse(FilePointer, content_type='text/plain')
             response['Content-Disposition'] = 'attachment; filename=' + filename
             return response
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             return HttpResponseNotFound()
 
 

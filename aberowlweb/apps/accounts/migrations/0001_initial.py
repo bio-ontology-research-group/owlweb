@@ -19,7 +19,8 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='UserProfile',
             fields=[
-                ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, primary_key=True, serialize=False, to=settings.AUTH_USER_MODEL)),
+                ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, primary_key=True,
+                                              serialize=False, to=settings.AUTH_USER_MODEL)),
                 ('birth_date', models.DateField(null=True)),
                 ('gender', models.IntegerField(choices=[(0, 'Male'), (1, 'Female')], default=0)),
             ],

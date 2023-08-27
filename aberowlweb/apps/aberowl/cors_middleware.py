@@ -16,6 +16,7 @@ class CorsMiddleware(object):
 
             response["Access-Control-Allow-Origin"] = "*"
             response[
-                "Access-Control-Allow-Headers"] = "accept, accept-encoding, authorization, content-type, origin, x-csrftoken, x-requested-with"
+                "Access-Control-Allow-Headers"] = "accept, accept-encoding, authorization, " \
+                                                  "content-type, origin, x-csrftoken, x-requested-with"
 
         return response
