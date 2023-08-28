@@ -4,9 +4,6 @@ from configurations import Configuration
 from kombu import Queue, Exchange
 from django.contrib import messages
 
-import shutil
-import configparser
-
 import environ
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -18,27 +15,12 @@ def rel(*x):
 
 env = environ.Env()
 
-READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
-if READ_DOT_ENV_FILE:
-    # OS environment variables take precedence over variables from .env
-    env.read_env(str(BASE_DIR / ".env"))
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 sys.path.insert(0, rel('apps'))
 
-# Reading setup properties from configuration file
-config_dir = os.path.expanduser("~") + "/.config"
-configFile = config_dir + "/aberowl.ini"
-
-if not os.path.isfile(configFile):
-    os.makedirs(config_dir, exist_ok=True)
-    shutil.copyfile("default_aberowl.ini", configFile)
-
-config = configparser.RawConfigParser()
-config.read(configFile)
-
 
 class BaseConfiguration(Configuration):
-    global config
 
     # SECURITY WARNING: keep the secret key used in production secret!
     # SECRET_KEY = 'm^a2@&q12j-t1$*sf+@5#mqbd3b6inp)w)y&)sgalm0g*)^)&q'
