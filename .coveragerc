@@ -1,10 +1,10 @@
-
 [run]
 omit =
   *aberowlweb/apps/aberowl/apps.py,
   *aberowlweb/migrations/*,
   *aberowlweb/settings*,
-  *tests/*,
+  */tests/*,
+  */migrations/*,
   *aberowlweb/urls.py,
   *aberowlweb/wsgi/*,
   manage.py

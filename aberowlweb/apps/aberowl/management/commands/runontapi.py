@@ -10,7 +10,13 @@ import logging
 import json
 import os
 
+import environ
+
+envl = environ.Env()
+
 ABEROWL_SERVER_URL = getattr(settings, 'ABEROWL_SERVER_URL', 'http://localhost/')
+
+environ.Env.read_env(os.path.join(getattr(settings, 'BASE_DIR'), '.env'))
 
 logging.basicConfig(level=logging.INFO)
 
@@ -45,8 +51,9 @@ class Command(BaseCommand):
             ontIRI = ABEROWL_SERVER_URL + ont.get_latest_submission().get_filepath()
             data.append({'ontId': ont.acronym, 'ontIRI': ontIRI})
         data = json.dumps(data)
+        memory = envl('RAM_SIZE', default=10)
         env = os.environ.copy()
-        env['JAVA_OPTS'] = '-Xmx10g -Xms8g -XX:+UseParallelGC'
+        env['JAVA_OPTS'] = f'-Xmx{memory}g -Xms8g -XX:+UseParallelGC'
         self.proc = Popen(
             ['groovy', 'OntologyServer.groovy'],
             cwd='aberowlapi/', stdin=PIPE, stdout=PIPE,
