@@ -133,7 +133,7 @@ class BackendAPIViewTest(APITestCase):
         self.url = '/api/backend/'
         self.acronym = 'TEST'
         self.query_data = {'query': 'query=example&type=test&ontology=sample&script=script&offset=0',
-                           'script': 'runQuery.groovy', 'offset': '0', 'type': 'type1'}
+                           'script': 'runQuery.groovy', 'offset': '0'}
         self.ontology_param = {'ontology': self.acronym}
 
     def get_mock_response(self):
@@ -183,7 +183,7 @@ class BackendAPIViewTest(APITestCase):
         mock_page.page.return_value.object_list = [{'item1': 'value1'}, {'item2': 'value2'}]
         mock_page.count = 2
         mock_page_cache.return_value = mock_page
-        response = self.client.get(self.url, self.query_data)
+        response = self.client.get(self.url, {**self.query_data, 'type': 'type1'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'ok')
         self.assertEqual(response.data['result'], [{'item1': 'value1'}, {'item2': 'value2'}])
@@ -194,13 +194,13 @@ class BackendAPIViewTest(APITestCase):
         # # TODO: Need to fix the method and rewrite the test to pass with status 'ok'
         self.ontology = OntologyFactory(acronym=self.acronym, name='Test Ontology', nb_servers=2)
         mock_get.return_value = self.get_mock_response()
-        response = self.client.get(self.url, self.query_data)
+        response = self.client.get(self.url, {**self.query_data, 'type': 'type1'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'exception')
         self.assertEqual(response.data['message'], 'That page number is less than 1')
 
     def test_get_without_only_ontology_param_without_cache_and_ontology_data(self):
-        response = self.client.get(self.url, self.query_data)
+        response = self.client.get(self.url, {**self.query_data, 'type': 'type1'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'exception')
         self.assertEqual(response.data['message'], 'API server is down!')
@@ -209,13 +209,13 @@ class BackendAPIViewTest(APITestCase):
     def test_get_without_several_params(self, mock_get):
         self.ontology = self.get_ontology_obj(2)
         mock_get.return_value = self.get_mock_response()
-        response = self.client.get(self.url, {'query': 'query'})
+        response = self.client.get(self.url, self.query_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'ok')
         self.assertEqual(response.data['total'], 2)
 
-    def test_get_without_several_params_with_ontology_data(self):
-        response = self.client.get(self.url, {'query': 'query'})
+    def test_get_without_several_params_without_ontology_data(self):
+        response = self.client.get(self.url, self.query_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'exception')
         self.assertEqual(response.data['message'], 'API server is down!')
