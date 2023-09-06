@@ -1,5 +1,7 @@
 from unittest.mock import patch, Mock
+from urllib.parse import urlencode
 
+from django.http import HttpResponse
 from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -7,20 +9,30 @@ from rest_framework import status
 from aberowl.tests.factories import OntologyFactory
 
 
+def get_json_mock_response(data, status_code=200):
+    mock_response = Mock()
+    mock_response.text = "This is the mock response content."
+    mock_response.status_code = status_code
+    mock_response.json.return_value = data
+    return mock_response
+
+
 class APITestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.query = 'example'
+        self.query = 'SELECT * WHERE {?s ?p ?o}'
+        self.endpoint = 'https://example.com/sparql'
         self.ontology = 'sample_ontology'
         self.es_mock_response = {
             'hits': {
                 'hits': [
-                    {'_source': {'label': 'Example 1', 'embedding_vector': 10}},
-                    {'_source': {'label': 'Example 2', 'embedding_vector': 20}}
+                    {'_source': {'label': 'Example 1', 'embedding_vector': 10, 'name': 'Name 1'}},
+                    {'_source': {'label': 'Example 2', 'embedding_vector': 20, 'name': 'Name 2'}}
                 ]
             }
         }
         self.es_mock_response_empty = {'hits': {'hits': []}}
+        self.mock_result = {'result': [{'label': 'Example 1'}, {'label': 'Example 2'}], 'total': 2, }
 
 
 class FindClassByMethodStartWithAPIViewTest(APITestCase):
@@ -80,8 +92,7 @@ class FindClassAPIViewTest(APITestCase):
         response = self.client.get(self.url, {'query': self.query})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'ok')
-        self.assertEqual(response.data['result'], [{'label': 'Example 1', 'embedding_vector': 10},
-                                                   {'label': 'Example 2', 'embedding_vector': 20}])
+        self.assertEqual(response.data['result'], [item['_source'] for item in self.es_mock_response['hits']['hits']])
 
 
 class MostSimilarAPIViewTest(APITestCase):
@@ -136,14 +147,6 @@ class BackendAPIViewTest(APITestCase):
                            'script': 'runQuery.groovy', 'offset': '0'}
         self.ontology_param = {'ontology': self.acronym}
 
-    def get_mock_response(self):
-        mock_response = Mock()
-        mock_response.json.return_value = {
-            'result': [{'label': 'Example 1'}, {'label': 'Example 2'}],
-            'total': 2,
-        }
-        return mock_response
-
     def get_ontology_obj(self, nb_servers):
         return OntologyFactory(acronym=self.acronym, name='Test Ontology', nb_servers=nb_servers)
 
@@ -156,7 +159,7 @@ class BackendAPIViewTest(APITestCase):
     @patch('requests.get')
     def test_get_with_valid_parameters(self, mock_get):
         self.ontology = self.get_ontology_obj(2)
-        mock_get.return_value = self.get_mock_response()
+        mock_get.return_value = get_json_mock_response(self.mock_result)
         response = self.client.get(self.url, {**self.query_data, **self.ontology_param})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'ok')
@@ -165,7 +168,7 @@ class BackendAPIViewTest(APITestCase):
     @patch('requests.get')
     def test_get_when_nb_servers_is_zero(self, mock_get):
         self.ontology = self.get_ontology_obj(0)
-        mock_get.return_value = self.get_mock_response()
+        mock_get.return_value = get_json_mock_response(self.mock_result)
         response = self.client.get(self.url, {**self.query_data, **self.ontology_param})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'exception')
@@ -193,7 +196,7 @@ class BackendAPIViewTest(APITestCase):
     def test_get_without_only_ontology_param_without_cache_with_ontology_data(self, mock_get):
         # # TODO: Need to fix the method and rewrite the test to pass with status 'ok'
         self.ontology = OntologyFactory(acronym=self.acronym, name='Test Ontology', nb_servers=2)
-        mock_get.return_value = self.get_mock_response()
+        mock_get.return_value = get_json_mock_response(self.mock_result)
         response = self.client.get(self.url, {**self.query_data, 'type': 'type1'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'exception')
@@ -208,7 +211,7 @@ class BackendAPIViewTest(APITestCase):
     @patch('requests.get')
     def test_get_without_several_params(self, mock_get):
         self.ontology = self.get_ontology_obj(2)
-        mock_get.return_value = self.get_mock_response()
+        mock_get.return_value = get_json_mock_response(self.mock_result)
         response = self.client.get(self.url, self.query_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'ok')
@@ -219,3 +222,84 @@ class BackendAPIViewTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'exception')
         self.assertEqual(response.data['message'], 'API server is down!')
+
+
+class FindOntologyAPIViewTest(APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.url = '/api/ontology/_find/'
+
+    @patch('aberowl.api_views.search')
+    def test_get_with_valid_query(self, mock_search):
+        mock_search.return_value = self.es_mock_response
+        response = self.client.get(self.url, {'query': 'example'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [item['_source'] for item in self.es_mock_response['hits']['hits']])
+
+    def test_get_with_missing_query(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'error')
+        self.assertEqual(response.data['message'], 'query field is required')
+
+
+class SparqlAPIViewTest(APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.query = 'SELECT * WHERE {?s ?p ?o}'
+        self.format = 'json'
+        self.url = '/api/sparql/'
+
+    @patch('aberowl.api_views.SparqlAPIView.process_query')
+    def test_post_with_valid_data(self, mock_process_query):
+        mock_process_query.return_value = HttpResponse()
+        response = self.client.post(self.url, {'query': self.query, 'format': self.format})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @patch('aberowl.api_views.SparqlAPIView.process_query')
+    def test_get_with_valid_query(self, mock_process_query):
+        # TODO need to fix code and rewrite the test for missing format and exceptions
+        mock_process_query.return_value = HttpResponse()
+        response = self.client.get(self.url, {'query': self.query, 'format': self.format, 'result_format': self.format})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @patch('requests.get')
+    def test_process_query(self, mock_get):
+        mock_get.return_value = get_json_mock_response(data={'query': self.query, 'endpoint': self.endpoint})
+        from aberowl.api_views import SparqlAPIView
+        view = SparqlAPIView()
+        query_url = urlencode(
+            {'query': self.query, 'format': 'json', 'timeout': 0, 'debug': 'on', 'run': 'Run Query', }, doseq=True)
+
+        # when ispost is True
+        response = view.process_query(query='query', res_format='json', ispost=True)
+        self.assertEqual(response['Location'], f'{self.endpoint}?{query_url}')
+
+        # when ispost is False (default)
+        response = view.process_query(query='query', res_format='json')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, f'{self.endpoint}?{query_url}')
+
+        # when query is missing
+        response = view.process_query(query=None, res_format='json', ispost=True)
+        self.assertEqual(response.data['status'], 'error')
+        self.assertEqual(response.data['message'], 'query is required')
+
+        # when res_format is missing
+        response = view.process_query(query='query', res_format=None, ispost=True)
+        self.assertEqual(response.data['status'], 'error')
+        self.assertEqual(response.data['message'], 'result format is required')
+
+        # when requests.get responds status code 400
+        mock_get.return_value = get_json_mock_response(data={'query': self.query, 'endpoint': self.endpoint},
+                                                       status_code=400)
+        response = view.process_query(query='query', res_format='json', ispost=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content.decode(), 'This is the mock response content.')
+
+        # when exception occurs
+        mock_get.side_effect = Exception('Mocked exception')
+        response = view.process_query(query='query', res_format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['status'], 'exception')
+        self.assertEqual(response.data['message'], 'Mocked exception')
