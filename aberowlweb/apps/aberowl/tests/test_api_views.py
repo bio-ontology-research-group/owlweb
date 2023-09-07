@@ -194,7 +194,7 @@ class BackendAPIViewTest(APITestCase):
 
     @patch('requests.get')
     def test_get_without_only_ontology_param_without_cache_with_ontology_data(self, mock_get):
-        # # TODO: Need to fix the method and rewrite the test to pass with status 'ok'
+        # TODO: Need to fix the method and rewrite the test to pass with status 'ok'
         self.ontology = OntologyFactory(acronym=self.acronym, name='Test Ontology', nb_servers=2)
         mock_get.return_value = get_json_mock_response(self.mock_result)
         response = self.client.get(self.url, {**self.query_data, 'type': 'type1'})
@@ -300,6 +300,64 @@ class SparqlAPIViewTest(APITestCase):
         # when exception occurs
         mock_get.side_effect = Exception('Mocked exception')
         response = view.process_query(query='query', res_format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['status'], 'exception')
+        self.assertEqual(response.data['message'], 'Mocked exception')
+
+
+class DLQueryAPIViewTest(APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.query = 'SELECT * WHERE {?s ?p ?o}'
+        self.format = 'json'
+        self.url = '/api/dlquery/'
+
+    @patch('aberowl.ont_server_request_processor.OntServerRequestProcessor.execute_dl_query')
+    @patch('expiringdict.ExpiringDict.get')
+    def test_get_with_valid_data(self, mock_page_cache, mock_execute_dl_query):
+        mock_page = Mock()
+        mock_page.page.return_value.object_list = [{'item1': 'value1'}, {'item2': 'value2'}]
+        mock_page.count = 2
+        mock_page_cache.return_value = mock_page
+        mock_execute_dl_query.return_value = self.mock_result
+
+        # when all params are expected
+        response = self.client.get(self.url, {'query': self.query, 'type': self.query, 'offset': 2,
+                                              'format': self.format})
+        self.assertEqual(response.data['status'], 'ok')
+        self.assertEqual(response.data['result'], [{'item1': 'value1'}, {'item2': 'value2'}])
+        self.assertEqual(response.data['total'], 2)
+
+        # when query is missing
+        response = self.client.get(self.url, {'format': self.format})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'error')
+        self.assertEqual(response.data['message'], 'query is required')
+
+        # when type is missing
+        response = self.client.get(self.url, {'query': self.query, 'format': self.format})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'error')
+        self.assertEqual(response.data['message'], 'type is required')
+
+        # when offset is missing
+        response = self.client.get(self.url, {'query': self.query, 'type': self.query, 'format': self.format})
+        self.assertEqual(response.data['status'], 'ok')
+        self.assertEqual(response.data['total'], 2)
+        self.assertEqual(response.data['result'], self.mock_result['result'])
+
+        # when cache is empty
+        # TODO: Need to fix the method and rewrite the test to pass with status 'ok'
+        mock_page_cache.return_value = None
+        response = self.client.get(self.url, {'query': self.query, 'type': self.query, 'offset': 2,
+                                              'format': self.format})
+        self.assertEqual(response.data['status'], 'exception')
+        self.assertEqual(response.data['message'], "'NoneType' object has no attribute 'page'")
+
+        # when exception occurs
+        mock_page_cache.side_effect = Exception('Mocked exception')
+        response = self.client.get(self.url, {'query': self.query, 'type': self.query, 'offset': 2,
+                                              'format': self.format})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['status'], 'exception')
         self.assertEqual(response.data['message'], 'Mocked exception')
