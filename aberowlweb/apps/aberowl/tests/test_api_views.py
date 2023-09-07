@@ -1,10 +1,14 @@
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, mock_open
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.http import HttpResponse
 from django.test import TestCase
+from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
+from aberowl.models import Ontology
+from aberowl import api_views
 
 from aberowl.tests.factories import OntologyFactory
 
@@ -21,6 +25,7 @@ class APITestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.query = 'SELECT * WHERE {?s ?p ?o}'
+        self.format = 'json'
         self.endpoint = 'https://example.com/sparql'
         self.ontology = 'sample_ontology'
         self.es_mock_response = {
@@ -35,12 +40,76 @@ class APITestCase(TestCase):
         self.mock_result = {'result': [{'label': 'Example 1'}, {'label': 'Example 2'}], 'total': 2, }
 
 
+class ApiViewMethodsTest(APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.url = 'https://example.com/api/data'
+
+    @patch('requests.get')
+    def test_make_request_success(self, mock_get):
+        mock_get.return_value = get_json_mock_response(data=self.mock_result)
+        result = api_views.make_request(self.url)
+        mock_get.assert_called_once_with(self.url, timeout=2)
+        self.assertEqual(result, self.mock_result['result'])
+
+    @patch('requests.get')
+    def test_make_request_failure(self, mock_get):
+        mock_get.side_effect = Exception('Mocked exception')
+        result = api_views.make_request(self.url)
+        mock_get.assert_called_once_with(self.url, timeout=2)
+        self.assertEqual(result, [])
+
+    @patch.object(api_views.es, 'search')
+    def test_search_success(self, mock_search):
+        mock_search.return_value = self.es_mock_response
+        index_name = 'test_index'
+        query_data = {'query': {'match_all': {}}}
+        result = api_views.search(index_name, query_data)
+        mock_search.assert_called_once_with(index=index_name, body=query_data, request_timeout=15)
+        self.assertEqual(result, self.es_mock_response)
+
+    @patch.object(api_views.es, 'search')
+    def test_search_failure(self, mock_search):
+        mock_search.side_effect = Exception('Mocked Elasticsearch exception')
+        index_name = 'test_index'
+        query_data = {'query': {'match_all': {}}}
+        result = api_views.search(index_name, query_data)
+        mock_search.assert_called_once_with(index=index_name, body=query_data, request_timeout=15)
+        self.assertEqual(result, {'hits': {'hits': []}})
+
+    def test_fix_iri_path_param(self):
+        # http
+        iri = 'http://example.com/resource'
+        fixed_iri = api_views.fix_iri_path_param(iri)
+        self.assertEqual(fixed_iri, 'http://example.com/resource')
+
+        # https
+        iri = 'https://example.com/resource'
+        fixed_iri = api_views.fix_iri_path_param(iri)
+        self.assertEqual(fixed_iri, 'https://example.com/resource')
+
+        # mixed_http
+        iri = 'http:/example.com/resource'
+        fixed_iri = api_views.fix_iri_path_param(iri)
+        self.assertEqual(fixed_iri, 'http://example.com/resource')
+
+        # mixed_https
+        iri = 'https:/example.com/resource'
+        fixed_iri = api_views.fix_iri_path_param(iri)
+        self.assertEqual(fixed_iri, 'https://example.com/resource')
+
+        # no_change
+        iri = 'https://example.com/resource'
+        fixed_iri = api_views.fix_iri_path_param(iri)
+        self.assertEqual(fixed_iri, 'https://example.com/resource')
+
+
 class FindClassByMethodStartWithAPIViewTest(APITestCase):
     def setUp(self):
         super().setUp()
-        self.url = '/api/class/_startwith/'
+        self.url = reverse('api-find_class_startwith')
 
-    @patch('aberowl.api_views.search')
+    @patch.object(api_views, 'search')
     def test_get_with_valid_query_and_ontology(self, mock_search):
         mock_search.return_value = self.es_mock_response
         response = self.client.get(self.url, {'query': self.query, 'ontology': self.ontology})
@@ -59,7 +128,7 @@ class FindClassByMethodStartWithAPIViewTest(APITestCase):
         self.assertEqual(response.data['status'], 'error')
         self.assertEqual(response.data['message'], 'ontology is required')
 
-    @patch('aberowl.api_views.search')
+    @patch.object(api_views, 'search')
     def test_get_with_exception(self, mock_search):
         mock_search.side_effect = Exception('Mocked exception')
         response = self.client.get(self.url, {'query': self.query, 'ontology': self.ontology})
@@ -71,9 +140,9 @@ class FindClassByMethodStartWithAPIViewTest(APITestCase):
 class FindClassAPIViewTest(APITestCase):
     def setUp(self):
         super().setUp()
-        self.url = '/api/class/_find/'
+        self.url = reverse('api-find_class')
 
-    @patch('aberowl.api_views.search')
+    @patch.object(api_views, 'search')
     def test_get_with_valid_query(self, mock_search):
         mock_search.return_value = self.es_mock_response
         response = self.client.get(self.url, {'query': self.query, 'ontology': self.ontology})
@@ -86,7 +155,7 @@ class FindClassAPIViewTest(APITestCase):
         self.assertEqual(response.data['status'], 'error')
         self.assertEqual(response.data['message'], 'Please provide query parameter!')
 
-    @patch('aberowl.api_views.search')
+    @patch.object(api_views, 'search')
     def test_get_with_missing_ontology(self, mock_search):
         mock_search.return_value = self.es_mock_response
         response = self.client.get(self.url, {'query': self.query})
@@ -98,18 +167,18 @@ class FindClassAPIViewTest(APITestCase):
 class MostSimilarAPIViewTest(APITestCase):
     def setUp(self):
         super().setUp()
-        self.url = '/api/class/_similar/'
+        self.url = reverse('api-find_class_similar')
         self.cls = 'example_class'
         self.size = '10'
 
-    @patch('aberowl.api_views.search')
+    @patch.object(api_views, 'search')
     def test_get_with_valid_parameters(self, mock_search):
         mock_search.return_value = self.es_mock_response
         response = self.client.get(self.url, {'class': self.cls, 'size': self.size, 'ontology': self.ontology})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'ok')
 
-    @patch('aberowl.api_views.search')
+    @patch.object(api_views, 'search')
     def test_get_with_es_empty_response(self, mock_search):
         mock_search.return_value = self.es_mock_response_empty
         response = self.client.get(self.url, {'class': self.cls, 'size': self.size, 'ontology': self.ontology})
@@ -141,7 +210,7 @@ class MostSimilarAPIViewTest(APITestCase):
 class BackendAPIViewTest(APITestCase):
     def setUp(self):
         super().setUp()
-        self.url = '/api/backend/'
+        self.url = reverse('api-backend')
         self.acronym = 'TEST'
         self.query_data = {'query': 'query=example&type=test&ontology=sample&script=script&offset=0',
                            'script': 'runQuery.groovy', 'offset': '0'}
@@ -183,13 +252,13 @@ class BackendAPIViewTest(APITestCase):
     @patch('expiringdict.ExpiringDict.get')
     def test_get_without_only_ontology_param_with_cache(self, mock_page_cache):
         mock_page = Mock()
-        mock_page.page.return_value.object_list = [{'item1': 'value1'}, {'item2': 'value2'}]
+        mock_page.page.return_value.object_list = self.mock_result['result']
         mock_page.count = 2
         mock_page_cache.return_value = mock_page
         response = self.client.get(self.url, {**self.query_data, 'type': 'type1'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'ok')
-        self.assertEqual(response.data['result'], [{'item1': 'value1'}, {'item2': 'value2'}])
+        self.assertEqual(response.data['result'], self.mock_result['result'])
         self.assertEqual(response.data['total'], 2)
 
     @patch('requests.get')
@@ -227,9 +296,9 @@ class BackendAPIViewTest(APITestCase):
 class FindOntologyAPIViewTest(APITestCase):
     def setUp(self):
         super().setUp()
-        self.url = '/api/ontology/_find/'
+        self.url = reverse('api-find_ontology')
 
-    @patch('aberowl.api_views.search')
+    @patch.object(api_views, 'search')
     def test_get_with_valid_query(self, mock_search):
         mock_search.return_value = self.es_mock_response
         response = self.client.get(self.url, {'query': 'example'})
@@ -246,17 +315,15 @@ class FindOntologyAPIViewTest(APITestCase):
 class SparqlAPIViewTest(APITestCase):
     def setUp(self):
         super().setUp()
-        self.query = 'SELECT * WHERE {?s ?p ?o}'
-        self.format = 'json'
-        self.url = '/api/sparql/'
+        self.url = reverse('api-sparql')
 
-    @patch('aberowl.api_views.SparqlAPIView.process_query')
+    @patch.object(api_views.SparqlAPIView, 'process_query')
     def test_post_with_valid_data(self, mock_process_query):
         mock_process_query.return_value = HttpResponse()
         response = self.client.post(self.url, {'query': self.query, 'format': self.format})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @patch('aberowl.api_views.SparqlAPIView.process_query')
+    @patch.object(api_views.SparqlAPIView, 'process_query')
     def test_get_with_valid_query(self, mock_process_query):
         # TODO need to fix code and rewrite the test for missing format and exceptions
         mock_process_query.return_value = HttpResponse()
@@ -308,15 +375,13 @@ class SparqlAPIViewTest(APITestCase):
 class DLQueryAPIViewTest(APITestCase):
     def setUp(self):
         super().setUp()
-        self.query = 'SELECT * WHERE {?s ?p ?o}'
-        self.format = 'json'
-        self.url = '/api/dlquery/'
+        self.url = reverse('api-dlquery')
 
-    @patch('aberowl.ont_server_request_processor.OntServerRequestProcessor.execute_dl_query')
+    @patch.object(api_views.ont_server, 'execute_dl_query')
     @patch('expiringdict.ExpiringDict.get')
     def test_get_with_valid_data(self, mock_page_cache, mock_execute_dl_query):
         mock_page = Mock()
-        mock_page.page.return_value.object_list = [{'item1': 'value1'}, {'item2': 'value2'}]
+        mock_page.page.return_value.object_list = self.mock_result['result']
         mock_page.count = 2
         mock_page_cache.return_value = mock_page
         mock_execute_dl_query.return_value = self.mock_result
@@ -325,7 +390,7 @@ class DLQueryAPIViewTest(APITestCase):
         response = self.client.get(self.url, {'query': self.query, 'type': self.query, 'offset': 2,
                                               'format': self.format})
         self.assertEqual(response.data['status'], 'ok')
-        self.assertEqual(response.data['result'], [{'item1': 'value1'}, {'item2': 'value2'}])
+        self.assertEqual(response.data['result'], self.mock_result['result'])
         self.assertEqual(response.data['total'], 2)
 
         # when query is missing
@@ -361,3 +426,227 @@ class DLQueryAPIViewTest(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['status'], 'exception')
         self.assertEqual(response.data['message'], 'Mocked exception')
+
+
+LOG_FOLDER = getattr(
+    settings, 'DLQUERY_LOGS_FOLDER', 'dl')
+
+
+class DLQueryLogsDownloadAPIViewTest(APITestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('api-dlquery_logs')
+
+    @patch('builtins.open', mock_open(read_data='Mocked log data'), create=True)
+    def test_get_with_existing_log_file(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/plain')
+        self.assertEqual(response.content.decode(), 'Mocked log data')
+
+    @patch('builtins.open')
+    def test_get_with_nonexistent_log_file(self, mock_open_method):
+        mock_open_method.side_effect = FileNotFoundError
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 404)
+
+
+class ListOntologyObjectPropertiesViewTest(APITestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('api-ontology_object_properties_list', args=['ontology_acronym'])
+
+    @patch.object(api_views.ont_server, 'find_ontology_object_properties')
+    def test_get_with_valid_data(self, mock_find_ontology_object_properties):
+        mock_find_ontology_object_properties.return_value = self.mock_result
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {**self.mock_result, 'status': 'ok', 'total': 2}
+        self.assertDictEqual(response.data, expected_response_data)
+
+    @patch.object(api_views.ont_server, 'find_ontology_object_properties')
+    def test_get_with_exception(self, mock_find_ontology_object_properties):
+        mock_find_ontology_object_properties.side_effect = Exception('Mocked exception')
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'exception', 'message': 'Mocked exception'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+
+class GetOntologyObjectPropertyViewTest(APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('api-ontology_object_property_details', args=['ontology_acronym', 'property_iri'])
+
+    @patch.object(api_views, 'fix_iri_path_param')
+    @patch.object(api_views.ont_server, 'find_ontology_object_properties')
+    def test_get_with_valid_data(self, mock_find_ontology_object_properties, mock_fix_iri_path_param):
+        mock_fix_iri_path_param.return_value = 'mocked_property_iri'
+        mock_find_ontology_object_properties.return_value = self.mock_result
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {**self.mock_result, 'status': 'ok'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+    @patch.object(api_views, 'fix_iri_path_param')
+    @patch.object(api_views.ont_server, 'find_ontology_object_properties')
+    def test_get_with_exception(self, mock_find_ontology_object_properties, mock_fix_iri_path_param):
+        mock_find_ontology_object_properties.side_effect = Exception('Mocked exception')
+        mock_fix_iri_path_param.return_value = 'mocked_property_iri'
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'exception', 'message': 'Mocked exception'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+
+class GetOntologyClassViewTest(APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('api-ontology_class_details', args=['ontology_acronym', 'class_iri'])
+
+    @patch.object(api_views, 'fix_iri_path_param')
+    @patch.object(api_views.ont_server, 'execute_dl_query')
+    @patch.object(Ontology.objects, 'filter')
+    def test_get_and_post_with_valid_data(self, mock_filter, mock_execute_dl_query, mock_fix_iri_path_param):
+        mock_fix_iri_path_param.return_value = 'mocked_class_iri'
+        mock_ontology = Ontology(acronym='ontology_acronym', nb_servers=True)
+        mock_filter.return_value.exists.return_value = True
+        mock_filter.return_value.get.return_value = mock_ontology
+        mock_execute_dl_query.return_value = self.mock_result
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {**self.mock_result, 'status': 'ok'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+        # test post request
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {**self.mock_result, 'status': 'ok'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+    @patch.object(api_views, 'fix_iri_path_param')
+    @patch.object(Ontology.objects, 'filter')
+    def test_get_with_nonexistent_ontology(self, mock_filter, mock_fix_iri_path_param):
+        mock_fix_iri_path_param.return_value = 'mocked_class_iri'
+        mock_filter.return_value.exists.return_value = False
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'exception', 'message': 'Ontology does not exist!'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+    @patch.object(api_views, 'fix_iri_path_param')
+    @patch.object(api_views.ont_server, 'execute_dl_query')
+    @patch.object(Ontology.objects, 'filter')
+    def test_get_with_exception(self, mock_filter, mock_execute_dl_query, mock_fix_iri_path_param):
+        mock_execute_dl_query.side_effect = Exception('Mocked exception')
+        mock_fix_iri_path_param.return_value = 'mocked_class_iri'
+        mock_ontology = Ontology(acronym='ontology_acronym', nb_servers=0)
+        mock_filter.return_value.exists.return_value = True
+        mock_filter.return_value.get.return_value = mock_ontology
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'exception', 'message': 'API server is down!'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+
+class FindOntologyRootClassViewTest(APITestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.url = reverse('api-ontology_class_root', args=['ontology_acronym', 'class_iri'])
+
+    @patch.object(api_views, 'fix_iri_path_param')
+    @patch.object(api_views.ont_server, 'find_ontology_root')
+    def test_get_with_valid_data(self, mock_find_ontology_root, mock_fix_iri_path_param):
+        mock_find_ontology_root.return_value = self.mock_result
+        mock_fix_iri_path_param.return_value = 'mocked_class_iri'
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {**self.mock_result, 'status': 'ok', 'total': 2}
+        self.assertDictEqual(response.data, expected_response_data)
+
+    @patch.object(api_views, 'fix_iri_path_param')
+    @patch.object(api_views.ont_server, 'find_ontology_root')
+    def test_get_with_exception(self, mock_find_ontology_root, mock_fix_iri_path_param):
+        mock_find_ontology_root.side_effect = Exception('Mocked exception')
+        mock_fix_iri_path_param.return_value = 'mocked_class_iri'
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'exception', 'message': 'Mocked exception'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+
+class ListInstanceAPIViewTest(APITestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('api-instance_list')
+
+    @patch.object(api_views.ont_server, 'find_by_ontology_and_class')
+    def test_get_with_valid_data(self, mock_find_by_ontology_and_class):
+        mock_find_by_ontology_and_class.return_value = self.mock_result
+        response = self.client.get(self.url, {'ontology': self.ontology, 'class_iri': 'class_iri_value'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = self.mock_result
+        self.assertDictEqual(response.data, expected_response_data)
+
+    def test_get_with_missing_ontology(self):
+        response = self.client.get(self.url, {'class_iri': 'class_iri_value'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'error', 'message': 'ontology acronym is required'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+    def test_get_with_missing_class_iri(self):
+        response = self.client.get(self.url, {'ontology': self.ontology})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'error', 'message': 'class_iri is required'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+    @patch.object(api_views.ont_server, 'find_by_ontology_and_class')
+    def test_get_with_exception(self, mock_find_by_ontology_and_class):
+        mock_find_by_ontology_and_class.side_effect = Exception('Mocked exception')
+        response = self.client.get(self.url, {'ontology': self.ontology, 'class_iri': 'class_iri_value'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'exception', 'message': 'Mocked exception'}
+        self.assertDictEqual(response.data, expected_response_data)
+
+
+class MatchSuperClassesTest(APITestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('api-matach_super_class', args=['ontology_acronym'])
+
+    @patch.object(api_views.ont_server, 'match_superclasses')
+    def test_post_with_valid_data(self, mock_match_superclasses):
+        mock_match_superclasses.return_value = self.mock_result
+        data = {'source_classes': ['class1', 'class2'], 'target_classes': ['class3', 'class4']}
+        response = self.client.post(self.url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = self.mock_result
+        self.assertDictEqual(response.data, expected_response_data)
+
+    def test_post_with_missing_source_classes(self):
+        data = {'target_classes': ['class3', 'class4']}
+        response = self.client.post(self.url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'exception', 'message': "'source_classes' element is required"}
+        self.assertDictEqual(response.data, expected_response_data)
+
+    def test_post_with_missing_target_classes(self):
+        data = {'source_classes': ['class1', 'class2']}
+        response = self.client.post(self.url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'exception', 'message': "'target_classes' element is required"}
+        self.assertDictEqual(response.data, expected_response_data)
+
+    @patch.object(api_views.ont_server, 'match_superclasses')
+    def test_post_with_exception(self, mock_match_superclasses):
+        mock_match_superclasses.side_effect = Exception('Mocked exception')
+        data = {'source_classes': ['class1', 'class2'], 'target_classes': ['class3', 'class4']}
+        response = self.client.post(self.url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_response_data = {'status': 'exception', 'message': 'Mocked exception'}
+        self.assertDictEqual(response.data, expected_response_data)
