@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import factory
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -5,6 +7,15 @@ from factory.django import DjangoModelFactory
 from aberowl.models import Ontology, Submission
 import pytz
 from faker import Faker
+
+
+def get_json_mock_response(data='test data', status_code=200):
+    mock_response = Mock()
+    mock_response.text = "This is the mock response content."
+    mock_response.status_code = status_code
+    mock_response.json.return_value = data
+    return mock_response
+
 
 fake = Faker()
 

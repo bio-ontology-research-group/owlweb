@@ -10,15 +10,7 @@ from rest_framework import status
 from aberowl.models import Ontology
 from aberowl import api_views
 
-from aberowl.tests.factories import OntologyFactory
-
-
-def get_json_mock_response(data, status_code=200):
-    mock_response = Mock()
-    mock_response.text = "This is the mock response content."
-    mock_response.status_code = status_code
-    mock_response.json.return_value = data
-    return mock_response
+from aberowl.tests.factories import OntologyFactory, get_json_mock_response
 
 
 class APITestCase(TestCase):
@@ -387,7 +379,7 @@ class DLQueryAPIViewTest(APITestCase):
         mock_execute_dl_query.return_value = self.mock_result
 
         # when all params are expected
-        response = self.client.get(self.url, {'query': self.query, 'type': self.query, 'offset': 2,
+        response = self.client.get(self.url, {'query': "test' query", 'type': self.query, 'offset': 2,
                                               'format': self.format})
         self.assertEqual(response.data['status'], 'ok')
         self.assertEqual(response.data['result'], self.mock_result['result'])
